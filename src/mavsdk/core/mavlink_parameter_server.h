@@ -54,6 +54,7 @@ public:
     std::pair<Result, float> retrieve_server_param_float(const std::string& name);
     std::pair<Result, int32_t> retrieve_server_param_int(const std::string& name);
     std::pair<Result, std::string> retrieve_server_param_custom(const std::string& name);
+    std::pair<Result, ParamValue> retrieve_server_param(const std::string& name);
 
     void do_work();
 

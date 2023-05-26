@@ -804,7 +804,7 @@ void MavsdkImpl::start_sending_heartbeats()
         _default_server_component = server_component_by_id(_configuration.get_component_id());
     }
 
-    if (_heartbeat_send_cookie == nullptr) {
+    if (_heartbeat_send_cookie == nullptr && !_configuration.get_disable_send_heartbeats()) {
         call_every_handler.add(
             [this]() { send_heartbeat(); }, HEARTBEAT_SEND_INTERVAL_S, &_heartbeat_send_cookie);
     }
@@ -812,7 +812,7 @@ void MavsdkImpl::start_sending_heartbeats()
 
 void MavsdkImpl::stop_sending_heartbeats()
 {
-    if (!_configuration.get_always_send_heartbeats()) {
+    if (!_configuration.get_always_send_heartbeats() || _configuration.get_disable_send_heartbeats()) {
         call_every_handler.remove(_heartbeat_send_cookie);
         _heartbeat_send_cookie = nullptr;
     }

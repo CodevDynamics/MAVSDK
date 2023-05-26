@@ -415,6 +415,8 @@ bool ParamValue::set_as_same_type(const std::string& value_str)
         return std::get<float>(_value);
     } else if (std::get_if<int32_t>(&_value)) {
         return *(reinterpret_cast<const float*>(&std::get<int32_t>(_value)));
+    } else if (std::get_if<uint32_t>(&_value)) {
+        return *(reinterpret_cast<const float*>(&std::get<uint32_t>(_value)));
     } else {
         LogErr() << "Unknown type";
         assert(false);

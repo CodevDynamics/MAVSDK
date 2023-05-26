@@ -86,7 +86,7 @@ MavlinkParameterServer::provide_server_param(const std::string& name, const Para
         case MavlinkParameterCache::AddNewParamResult::Ok:
             return Result::Success;
         case MavlinkParameterCache::AddNewParamResult::AlreadyExists:
-            return Result::ParamExistsAlready;
+            break;
         case MavlinkParameterCache::AddNewParamResult::TooManyParams:
             return Result::TooManyParams;
         default:
@@ -177,6 +177,17 @@ std::pair<MavlinkParameterServer::Result, int32_t>
 MavlinkParameterServer::retrieve_server_param_int(const std::string& name)
 {
     return retrieve_server_param<int32_t>(name);
+}
+
+std::pair<MavlinkParameterServer::Result, ParamValue>
+MavlinkParameterServer::retrieve_server_param(const std::string& name)
+{
+    std::lock_guard<std::mutex> lock(_all_params_mutex);
+    const auto param_opt = _param_cache.param_by_id(name, true);
+    if (!param_opt.has_value()) {
+        return {Result::NotFound, {}};
+    }
+    return {Result::Success, param_opt.value().value};
 }
 
 void MavlinkParameterServer::process_param_set_internally(

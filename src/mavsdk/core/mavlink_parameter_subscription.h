@@ -34,6 +34,7 @@ public:
     using ParamCustomChangedCallback = ParamChangedCallback<std::string>;
     void subscribe_param_custom_changed(
         const std::string& name, const ParamCustomChangedCallback& callback, const void* cookie);
+    void subscribe_param_changed(const ParamCustomChangedCallback& callback, const void* cookie);
 
 protected:
     /**

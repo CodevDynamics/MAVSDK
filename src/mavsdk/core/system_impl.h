@@ -261,6 +261,8 @@ public:
     void register_param_changed_handler(const ParamChangedCallback& callback, const void* cookie);
     void unregister_param_changed_handler(const void* cookie);
 
+    MavlinkParameterClient* param_sender(uint8_t component_id, bool extended);
+
     bool is_connected() const;
 
     Time& get_time();
@@ -345,8 +347,6 @@ private:
     AutopilotTime _autopilot_time{};
 
     MavlinkStatustextHandler _statustext_handler{};
-
-    MavlinkParameterClient* param_sender(uint8_t component_id, bool extended);
 
     struct StatustextCallback {
         std::function<void(const MavlinkStatustextHandler::Statustext&)> callback;

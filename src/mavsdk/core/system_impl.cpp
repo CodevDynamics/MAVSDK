@@ -293,7 +293,8 @@ void SystemImpl::system_thread()
         _timesync.do_work();
         _mission_transfer.do_work();
 
-        if (_mavsdk_impl.time.elapsed_since_s(last_ping_time) >= SystemImpl::_ping_interval_s) {
+        if (_mavsdk_impl.time.elapsed_since_s(last_ping_time) >= SystemImpl::_ping_interval_s &&
+            _mavsdk_impl.get_own_component_id() != MavsdkImpl::DEFAULT_COMPONENT_ID_AUTOPILOT) {
             if (_connected) {
                 _ping.run_once();
             }

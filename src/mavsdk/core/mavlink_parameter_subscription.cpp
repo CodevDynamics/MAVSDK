@@ -54,12 +54,21 @@ void MavlinkParameterSubscription::subscribe_param_custom_changed(
     subscribe_param_changed<std::string>(name, callback, cookie);
 }
 
+void MavlinkParameterSubscription::subscribe_param_changed(
+    const ParamCustomChangedCallback& callback, const void* cookie)
+{
+    subscribe_param_changed<std::string>("", callback, cookie);
+}
+
 void MavlinkParameterSubscription::find_and_call_subscriptions_value_changed(
     const std::string& param_name, const ParamValue& value)
 {
     std::lock_guard<std::mutex> lock(_param_changed_subscriptions_mutex);
     for (const auto& subscription : _param_changed_subscriptions) {
-        if (subscription.param_name != param_name) {
+        if(subscription.param_name.empty()) {
+            std::get<ParamCustomChangedCallback>(subscription.callback)(param_name);
+            continue;
+        } else if (subscription.param_name != param_name) {
             continue;
         }
         // We have a subscription on this param name, now check if the subscription is for the right

@@ -250,11 +250,13 @@ public:
          * @return whether to always send heartbeats
          */
         bool get_always_send_heartbeats() const;
+        bool get_disable_send_heartbeats() const;
 
         /**
          * @brief Set whether to send heartbeats by default.
          */
         void set_always_send_heartbeats(bool always_send_heartbeats);
+        void set_disable_send_heartbeats(bool disable_send_heartbeats);
 
         /** @brief Usage type of this configuration, used for automatic ID set */
         UsageType get_usage_type() const;
@@ -268,6 +270,7 @@ public:
         uint8_t _system_id;
         uint8_t _component_id;
         bool _always_send_heartbeats;
+        bool _disable_send_heartbeats;
         UsageType _usage_type;
 
         static Mavsdk::Configuration::UsageType usage_type_for_component(uint8_t component_id);

@@ -116,6 +116,11 @@ public:
     void unregister_mavlink_command_handler(uint16_t cmd_id, const void* cookie);
     void unregister_all_mavlink_command_handlers(const void* cookie);
 
+    mavlink_message_t
+    make_command_ack_message(const MavlinkCommandReceiver::CommandLong& command, MAV_RESULT result);
+    mavlink_message_t
+    make_command_ack_message(const MavlinkCommandReceiver::CommandInt& command, MAV_RESULT result);
+
 private:
     MavsdkImpl& _mavsdk_impl;
 

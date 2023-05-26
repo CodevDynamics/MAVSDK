@@ -124,6 +124,7 @@ Mavsdk::Configuration::Configuration(UsageType usage_type) :
     _system_id(MavsdkImpl::DEFAULT_SYSTEM_ID_GCS),
     _component_id(MavsdkImpl::DEFAULT_COMPONENT_ID_GCS),
     _always_send_heartbeats(false),
+    _disable_send_heartbeats(false),
     _usage_type(usage_type)
 {
     switch (usage_type) {
@@ -178,9 +179,19 @@ bool Mavsdk::Configuration::get_always_send_heartbeats() const
     return _always_send_heartbeats;
 }
 
+bool Mavsdk::Configuration::get_disable_send_heartbeats() const
+{
+    return _disable_send_heartbeats;
+}
+
 void Mavsdk::Configuration::set_always_send_heartbeats(bool always_send_heartbeats)
 {
     _always_send_heartbeats = always_send_heartbeats;
+}
+
+void Mavsdk::Configuration::set_disable_send_heartbeats(bool disable_send_heartbeats)
+{
+    _disable_send_heartbeats = disable_send_heartbeats;
 }
 
 Mavsdk::Configuration::UsageType Mavsdk::Configuration::get_usage_type() const

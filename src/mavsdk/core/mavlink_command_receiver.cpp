@@ -33,6 +33,7 @@ void MavlinkCommandReceiver::receive_command_int(const mavlink_message_t& messag
 
     std::lock_guard<std::mutex> lock(_mavlink_command_handler_table_mutex);
 
+    bool support = false;
     for (auto& handler : _mavlink_command_int_handler_table) {
         if (handler.cmd_id == cmd.command) {
             // The client side can pack a COMMAND_ACK as a response to receiving the command.
@@ -40,7 +41,13 @@ void MavlinkCommandReceiver::receive_command_int(const mavlink_message_t& messag
             if (maybe_message) {
                 _mavsdk_impl.send_message(maybe_message.value());
             }
+            support = true;
         }
+    }
+    if(!support) {
+        LogWarn() << "CommandLong " << cmd.command << " UNSUPPORTED";
+        mavlink_message_t msg = make_command_ack_message(cmd, MAV_RESULT_UNSUPPORTED);
+        _mavsdk_impl.send_message(msg);
     }
 }
 
@@ -50,6 +57,7 @@ void MavlinkCommandReceiver::receive_command_long(const mavlink_message_t& messa
 
     std::lock_guard<std::mutex> lock(_mavlink_command_handler_table_mutex);
 
+    bool support = false;
     for (auto& handler : _mavlink_command_long_handler_table) {
         if (handler.cmd_id == cmd.command) {
             // The client side can pack a COMMAND_ACK as a response to receiving the command.
@@ -57,7 +65,13 @@ void MavlinkCommandReceiver::receive_command_long(const mavlink_message_t& messa
             if (maybe_message) {
                 _mavsdk_impl.send_message(maybe_message.value());
             }
+            support = true;
         }
+    }
+    if(!support) {
+        LogWarn() << "CommandLong " << cmd.command << " UNSUPPORTED";
+        mavlink_message_t msg = make_command_ack_message(cmd, MAV_RESULT_UNSUPPORTED);
+        _mavsdk_impl.send_message(msg);
     }
 }
 
@@ -131,6 +145,46 @@ void MavlinkCommandReceiver::unregister_all_mavlink_command_handlers(const void*
             ++it;
         }
     }
+}
+
+mavlink_message_t MavlinkCommandReceiver::make_command_ack_message(
+    const MavlinkCommandReceiver::CommandLong& command, MAV_RESULT result)
+{
+    const uint8_t progress = std::numeric_limits<uint8_t>::max();
+    const uint8_t result_param2 = 0;
+
+    mavlink_message_t msg{};
+    mavlink_msg_command_ack_pack(
+        _mavsdk_impl.get_own_system_id(),
+        _mavsdk_impl.get_own_component_id(),
+        &msg,
+        command.command,
+        result,
+        progress,
+        result_param2,
+        command.origin_system_id,
+        command.origin_component_id);
+    return msg;
+}
+
+mavlink_message_t MavlinkCommandReceiver::make_command_ack_message(
+    const MavlinkCommandReceiver::CommandInt& command, MAV_RESULT result)
+{
+    const uint8_t progress = std::numeric_limits<uint8_t>::max();
+    const uint8_t result_param2 = 0;
+
+    mavlink_message_t msg{};
+    mavlink_msg_command_ack_pack(
+        _mavsdk_impl.get_own_system_id(),
+        _mavsdk_impl.get_own_component_id(),
+        &msg,
+        command.command,
+        result,
+        progress,
+        result_param2,
+        command.origin_system_id,
+        command.origin_component_id);
+    return msg;
 }
 
 } // namespace mavsdk
