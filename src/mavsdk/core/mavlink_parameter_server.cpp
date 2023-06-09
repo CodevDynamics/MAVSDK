@@ -66,6 +66,21 @@ MavlinkParameterServer::~MavlinkParameterServer()
     _message_handler.unregister_all(this);
 }
 
+void MavlinkParameterServer::publish_server_param(const std::string& name, bool extended)
+{
+    const auto param_count = _param_cache.count(extended);
+    const auto param_opt = _param_cache.param_by_id(name, true);
+
+    if (param_opt.has_value()) {
+        const auto& param = param_opt.value();
+        auto new_work = std::make_shared<WorkItem>(
+            param.id,
+            param.value,
+            WorkItemValue{param.index, param_count, extended});
+        _work_queue.push_back(new_work);
+    }
+}
+
 MavlinkParameterServer::Result
 MavlinkParameterServer::provide_server_param(const std::string& name, const ParamValue& param_value)
 {
@@ -415,6 +430,9 @@ void MavlinkParameterServer::process_param_request_list(const mavlink_message_t&
     mavlink_msg_param_request_list_decode(&message, &list_request);
     if (!target_matches(list_request.target_system, list_request.target_component, true)) {
         log_target_mismatch(list_request.target_system, list_request.target_component);
+        return;
+    }
+    if(list_request.target_component == MAV_COMP_ID_ALL && _sender.get_own_component_id() != MAV_COMP_ID_AUTOPILOT1) {
         return;
     }
     broadcast_all_parameters(false);

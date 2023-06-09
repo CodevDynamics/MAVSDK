@@ -68,6 +68,7 @@ MavsdkImpl::~MavsdkImpl()
 
     {
         std::lock_guard<std::mutex> lock(_connections_mutex);
+        _udpConnections.clear();
         _connections.clear();
     }
 }
@@ -427,9 +428,8 @@ bool MavsdkImpl::send_message(mavlink_message_t& message)
     }
 
     uint8_t successful_emissions = 0;
+    const uint8_t target_system_id = get_target_system_id(message);
     for (auto& _connection : _connections) {
-        const uint8_t target_system_id = get_target_system_id(message);
-
         if (target_system_id != 0 && !(*_connection).has_system_id(target_system_id)) {
             continue;
         }
@@ -440,7 +440,7 @@ bool MavsdkImpl::send_message(mavlink_message_t& message)
     }
 
     if (successful_emissions == 0) {
-        LogErr() << "Sending message failed";
+        LogErr() << "Sending message failed, target_id " << (int)target_system_id;
         return false;
     }
 
@@ -510,6 +510,7 @@ ConnectionResult MavsdkImpl::add_udp_connection(
     }
     ConnectionResult ret = new_conn->start();
     if (ret == ConnectionResult::Success) {
+        _udpConnections.push_back(new_conn);
         add_connection(new_conn);
     }
     return ret;
@@ -531,6 +532,7 @@ ConnectionResult MavsdkImpl::setup_udp_remote(
     ConnectionResult ret = new_conn->start();
     if (ret == ConnectionResult::Success) {
         new_conn->add_remote(remote_ip, remote_port);
+        _udpConnections.push_back(new_conn);
         add_connection(new_conn);
         std::lock_guard<std::recursive_mutex> lock(_systems_mutex);
         make_system_with_component(0, 0, true);
@@ -600,6 +602,21 @@ void MavsdkImpl::add_connection(const std::shared_ptr<Connection>& new_connectio
 Mavsdk::Configuration MavsdkImpl::get_configuration() const
 {
     return _configuration;
+}
+
+std::vector<std::string> MavsdkImpl::get_udp_active_remote_ip()
+{
+    std::vector<std::string> ips;
+    for (auto con : _udpConnections) {
+        auto remotes = con->remotes();
+        for (auto& remote : remotes) {
+            if (time.elapsed_since_s(remote.last_received_time) < 5 &&
+                std::find(ips.begin(), ips.end(), remote.ip) == ips.end()) {
+                ips.push_back(remote.ip);
+            }
+        }
+    }
+    return ips;
 }
 
 void MavsdkImpl::set_configuration(Mavsdk::Configuration new_configuration)

@@ -30,6 +30,10 @@ public:
     void upload_mission_async(
         const std::vector<MissionRaw::MissionItem>& mission_raw,
         const MissionRaw::ResultCallback& callback);
+    void upload_mission_with_progress_async(
+        const std::vector<MissionRaw::MissionItem>& mission_raw,
+        const std::function<void(MissionRaw::Result,float)>& callback);
+
     MissionRaw::Result upload_geofence(std::vector<MissionRaw::MissionItem> mission_items);
     void upload_geofence_async(
         const std::vector<MissionRaw::MissionItem>& mission_raw,
@@ -79,9 +83,9 @@ public:
     MissionRawImpl(const MissionRawImpl&) = delete;
     const MissionRawImpl& operator=(const MissionRawImpl&) = delete;
 
-private:
-    void reset_mission_progress();
+    void reset_mission_progress(int total = -1);
 
+private:
     void process_mission_ack(const mavlink_message_t& message);
     void process_mission_current(const mavlink_message_t& message);
     void process_mission_item_reached(const mavlink_message_t& message);
@@ -110,6 +114,10 @@ private:
         const std::vector<MissionRaw::MissionItem>& mission_raw,
         uint8_t type,
         const MissionRaw::ResultCallback& callback);
+    void upload_mission_items_async(
+        const std::vector<MissionRaw::MissionItem>& mission_raw,
+        uint8_t type,
+        const std::function<void(MissionRaw::Result,float)>& callback);
 
     // TODO: check if these need a mutex as well.
     std::weak_ptr<MavlinkMissionTransfer::WorkItem> _last_upload{};

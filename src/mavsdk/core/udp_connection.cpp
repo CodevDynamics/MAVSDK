@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <utility>
+#include <chrono>
 
 #ifdef WINDOWS
 #define GET_ERROR(_x) WSAGetLastError()
@@ -193,6 +194,8 @@ void UdpConnection::add_remote_with_remote_sysid(
                       << " (with system ID: " << static_cast<int>(remote_sysid) << ")";
         }
         _remotes.push_back(new_remote);
+    } else {
+        (*existing_remote).last_received_time = std::chrono::steady_clock::now();
     }
 }
 

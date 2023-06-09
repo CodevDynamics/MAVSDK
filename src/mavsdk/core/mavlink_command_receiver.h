@@ -1,5 +1,6 @@
 #pragma once
 
+#include "sender.h"
 #include "mavlink_include.h"
 #include "locked_queue.h"
 #include <cmath>
@@ -17,7 +18,7 @@ class MavsdkImpl;
 
 class MavlinkCommandReceiver {
 public:
-    explicit MavlinkCommandReceiver(MavsdkImpl& mavsdk_impl);
+    explicit MavlinkCommandReceiver(Sender& sender, MavsdkImpl& mavsdk_impl);
     ~MavlinkCommandReceiver();
 
     struct CommandInt {
@@ -122,6 +123,7 @@ public:
     make_command_ack_message(const MavlinkCommandReceiver::CommandInt& command, MAV_RESULT result);
 
 private:
+    Sender& _sender;
     MavsdkImpl& _mavsdk_impl;
 
     void receive_command_int(const mavlink_message_t& message);

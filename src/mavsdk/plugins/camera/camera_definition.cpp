@@ -339,27 +339,31 @@ CameraDefinition::parse_range_options(
     std::vector<std::shared_ptr<Option>> options{};
     Option default_option{};
 
+    ParamValue min_value;
     const char* min_str = param_handle->Attribute("min");
     if (!min_str) {
-        LogErr() << "min range missing for " << param_name;
-        return std::make_tuple<>(false, options, default_option);
+        if(!min_value.set_to_min_from_xml_type(type_map[param_name])) {
+            LogErr() << "min range missing for " << param_name;
+            return std::make_tuple<>(false, options, default_option);
+        }
+    } else {
+        min_value.set_from_xml(type_map[param_name], min_str);
     }
 
-    ParamValue min_value;
-    min_value.set_from_xml(type_map[param_name], min_str);
-
+    ParamValue max_value;
     const char* max_str = param_handle->Attribute("max");
     if (!max_str) {
-        LogErr() << "max range missing for " << param_name;
-        return std::make_tuple<>(false, options, default_option);
+        if(!max_value.set_to_max_from_xml_type(type_map[param_name])) {
+            LogErr() << "max range missing for " << param_name;
+            return std::make_tuple<>(false, options, default_option);
+        }
+    } else {
+        max_value.set_from_xml(type_map[param_name], max_str);
     }
 
     auto min_option = std::make_shared<Option>();
     min_option->name = "min";
     min_option->value = min_value;
-
-    ParamValue max_value;
-    max_value.set_from_xml(type_map[param_name], max_str);
 
     auto max_option = std::make_shared<Option>();
     max_option->name = "max";

@@ -8,7 +8,7 @@ ServerComponentImpl::ServerComponentImpl(MavsdkImpl& mavsdk_impl, uint8_t compon
     _mavsdk_impl(mavsdk_impl),
     _own_component_id(component_id),
     _our_sender(mavsdk_impl, *this),
-    _mavlink_command_receiver(mavsdk_impl),
+    _mavlink_command_receiver(_our_sender, mavsdk_impl),
     _mission_transfer(
         _our_sender,
         mavsdk_impl.mavlink_message_handler,
@@ -126,6 +126,11 @@ void ServerComponentImpl::set_own_component_id(uint8_t own_component_id)
 uint8_t ServerComponentImpl::get_own_component_id() const
 {
     return _own_component_id;
+}
+
+std::vector<std::string> ServerComponentImpl::get_udp_active_remote_ip()
+{
+    return _mavsdk_impl.get_udp_active_remote_ip();
 }
 
 Time& ServerComponentImpl::get_time()

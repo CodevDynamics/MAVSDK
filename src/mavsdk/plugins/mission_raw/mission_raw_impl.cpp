@@ -59,11 +59,11 @@ void MissionRawImpl::deinit()
     _system_impl->unregister_all_mavlink_message_handlers(this);
 }
 
-void MissionRawImpl::reset_mission_progress()
+void MissionRawImpl::reset_mission_progress(int total)
 {
     std::lock_guard<std::mutex> lock(_mission_progress.mutex);
     _mission_progress.last.current = -1;
-    _mission_progress.last.total = -1;
+    _mission_progress.last.total = total;
     _mission_progress.last_reported.current = -1;
     _mission_progress.last_reported.total = -1;
     _mission_progress.last_reached = -1;
@@ -159,6 +159,44 @@ void MissionRawImpl::upload_mission_items_async(
         });
 }
 
+void MissionRawImpl::upload_mission_items_async(
+    const std::vector<MissionRaw::MissionItem>& mission_raw,
+    uint8_t type,
+    const std::function<void(MissionRaw::Result,float)>& callback)
+{
+    if (_last_upload.lock()) {
+        _system_impl->call_user_callback([callback]() {
+            if (callback) {
+                callback(MissionRaw::Result::Busy, 0.0f);
+            }
+        });
+        return;
+    }
+
+    reset_mission_progress();
+
+    const auto int_items = convert_to_int_items(mission_raw);
+
+    _last_upload = _system_impl->mission_transfer().upload_items_async(
+        type, int_items,
+        [this, callback, int_items](MavlinkMissionTransfer::Result result) {
+            auto converted_result = convert_result(result);
+            auto converted_items = convert_items(int_items);
+            _system_impl->call_user_callback([callback, converted_result, converted_items]() {
+                if (callback) {
+                    callback(converted_result, 100.0f);
+                }
+            });
+        },
+        [this, callback](float progress) {
+            _system_impl->call_user_callback([callback, progress]() {
+                if (callback) {
+                    callback(MissionRaw::Result::Unknown, progress);
+                }
+            });
+        });
+}
+
 MissionRaw::Result
 MissionRawImpl::upload_mission(std::vector<MissionRaw::MissionItem> mission_items)
 {
@@ -168,6 +206,13 @@ MissionRawImpl::upload_mission(std::vector<MissionRaw::MissionItem> mission_item
 void MissionRawImpl::upload_mission_async(
     const std::vector<MissionRaw::MissionItem>& mission_raw,
     const MissionRaw::ResultCallback& callback)
+{
+    upload_mission_items_async(mission_raw, MAV_MISSION_TYPE_MISSION, callback);
+}
+
+void MissionRawImpl::upload_mission_with_progress_async(
+    const std::vector<MissionRaw::MissionItem>& mission_raw,
+    const std::function<void(MissionRaw::Result,float)>& callback)
 {
     upload_mission_items_async(mission_raw, MAV_MISSION_TYPE_MISSION, callback);
 }

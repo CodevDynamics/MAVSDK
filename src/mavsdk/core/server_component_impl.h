@@ -96,6 +96,8 @@ public:
     void set_own_component_id(uint8_t own_component_id);
     [[nodiscard]] uint8_t get_own_component_id() const;
 
+    std::vector<std::string> get_udp_active_remote_ip();
+
     Time& get_time();
 
     bool send_message(mavlink_message_t& message);

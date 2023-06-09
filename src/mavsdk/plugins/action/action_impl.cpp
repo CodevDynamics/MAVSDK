@@ -225,16 +225,20 @@ Action::Result ActionImpl::transition_to_multicopter() const
 void ActionImpl::arm_async(const Action::ResultCallback& callback) const
 {
     auto send_arm_command = [this, callback]() {
-        MavlinkCommandSender::CommandLong command{};
+        if(_system_impl->is_armed()) {
+            command_result_callback(MavlinkCommandSender::Result::Success, callback);
+        } else {
+            MavlinkCommandSender::CommandLong command{};
 
-        command.command = MAV_CMD_COMPONENT_ARM_DISARM;
-        command.params.maybe_param1 = 1.0f; // arm
-        command.target_component_id = _system_impl->get_autopilot_id();
+            command.command = MAV_CMD_COMPONENT_ARM_DISARM;
+            command.params.maybe_param1 = 1.0f; // arm
+            command.target_component_id = _system_impl->get_autopilot_id();
 
-        _system_impl->send_command_async(
-            command, [this, callback](MavlinkCommandSender::Result result, float) {
-                command_result_callback(result, callback);
-            });
+            _system_impl->send_command_async(
+                command, [this, callback](MavlinkCommandSender::Result result, float) {
+                    command_result_callback(result, callback);
+                });
+        }
     };
 
     if (need_hold_before_arm()) {
@@ -287,16 +291,20 @@ bool ActionImpl::need_hold_before_arm_apm() const
 
 void ActionImpl::disarm_async(const Action::ResultCallback& callback) const
 {
-    MavlinkCommandSender::CommandLong command{};
+    if(_system_impl->is_armed()) {
+        MavlinkCommandSender::CommandLong command{};
 
-    command.command = MAV_CMD_COMPONENT_ARM_DISARM;
-    command.params.maybe_param1 = 0.0f; // disarm
-    command.target_component_id = _system_impl->get_autopilot_id();
+        command.command = MAV_CMD_COMPONENT_ARM_DISARM;
+        command.params.maybe_param1 = 0.0f; // disarm
+        command.target_component_id = _system_impl->get_autopilot_id();
 
-    _system_impl->send_command_async(
-        command, [this, callback](MavlinkCommandSender::Result result, float) {
-            command_result_callback(result, callback);
-        });
+        _system_impl->send_command_async(
+            command, [this, callback](MavlinkCommandSender::Result result, float) {
+                command_result_callback(result, callback);
+            });
+    } else {
+        command_result_callback(MavlinkCommandSender::Result::Success, callback);
+    }
 }
 
 void ActionImpl::terminate_async(const Action::ResultCallback& callback) const

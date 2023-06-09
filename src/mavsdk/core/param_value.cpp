@@ -1,6 +1,7 @@
 #include "param_value.h"
 
 #include <cassert>
+#include <limits>
 
 namespace mavsdk {
 
@@ -264,7 +265,7 @@ bool ParamValue::set_from_mavlink_param_ext_value(
 
 bool ParamValue::set_from_xml(const std::string& type_str, const std::string& value_str)
 {
-    if (strcmp(type_str.c_str(), "uint8") == 0) {
+    if (strcmp(type_str.c_str(), "uint8") == 0 || strcmp(type_str.c_str(), "bool") == 0) {
         _value = static_cast<uint8_t>(std::stoi(value_str));
     } else if (strcmp(type_str.c_str(), "int8") == 0) {
         _value = static_cast<int8_t>(std::stoi(value_str));
@@ -291,9 +292,70 @@ bool ParamValue::set_from_xml(const std::string& type_str, const std::string& va
     return true;
 }
 
+bool ParamValue::set_to_min_from_xml_type(const std::string& type_str)
+{
+    if (strcmp(type_str.c_str(), "uint8") == 0 || strcmp(type_str.c_str(), "bool") == 0) {
+        _value = std::numeric_limits<uint8_t>::min();
+    } else if (strcmp(type_str.c_str(), "int8") == 0) {
+        _value = std::numeric_limits<int8_t>::min();
+    } else if (strcmp(type_str.c_str(), "uint16") == 0) {
+        _value = std::numeric_limits<uint16_t>::min();
+    } else if (strcmp(type_str.c_str(), "int16") == 0) {
+        _value = std::numeric_limits<int16_t>::min();
+    } else if (strcmp(type_str.c_str(), "uint32") == 0) {
+        _value = std::numeric_limits<uint32_t>::min();
+    } else if (strcmp(type_str.c_str(), "int32") == 0) {
+        _value = std::numeric_limits<int32_t>::min();
+    } else if (strcmp(type_str.c_str(), "uint64") == 0) {
+        _value = std::numeric_limits<uint64_t>::min();
+    } else if (strcmp(type_str.c_str(), "int64") == 0) {
+        _value = std::numeric_limits<int64_t>::min();
+    } else if (strcmp(type_str.c_str(), "float") == 0) {
+        _value = std::numeric_limits<float>::lowest();
+    } else if (strcmp(type_str.c_str(), "double") == 0) {
+        _value = std::numeric_limits<double>::lowest();
+    } else {
+        LogErr() << "Unknown type: " << type_str;
+        return false;
+    }
+    return true;
+}
+
+bool ParamValue::set_to_max_from_xml_type(const std::string& type_str)
+{
+    if (strcmp(type_str.c_str(), "uint8") == 0 || strcmp(type_str.c_str(), "bool") == 0) {
+        _value = std::numeric_limits<uint8_t>::max();
+    } else if (strcmp(type_str.c_str(), "int8") == 0) {
+        _value = std::numeric_limits<int8_t>::max();
+    } else if (strcmp(type_str.c_str(), "uint16") == 0) {
+        _value = std::numeric_limits<uint16_t>::max();
+    } else if (strcmp(type_str.c_str(), "int16") == 0) {
+        _value = std::numeric_limits<int16_t>::max();
+    } else if (strcmp(type_str.c_str(), "uint32") == 0) {
+        _value = std::numeric_limits<uint32_t>::max();
+    } else if (strcmp(type_str.c_str(), "int32") == 0) {
+        _value = std::numeric_limits<int32_t>::max();
+    } else if (strcmp(type_str.c_str(), "uint64") == 0) {
+        _value = std::numeric_limits<uint64_t>::max();
+    } else if (strcmp(type_str.c_str(), "int64") == 0) {
+        _value = std::numeric_limits<int64_t>::max();
+    } else if (strcmp(type_str.c_str(), "float") == 0) {
+        _value = std::numeric_limits<float>::max();
+    } else if (strcmp(type_str.c_str(), "double") == 0) {
+        _value = std::numeric_limits<double>::max();
+    } else {
+        LogErr() << "Unknown type: " << type_str;
+        return false;
+    }
+    return true;
+}
+
+
 bool ParamValue::set_empty_type_from_xml(const std::string& type_str)
 {
-    if (strcmp(type_str.c_str(), "uint8") == 0) {
+    if (strcmp(type_str.c_str(), "bool") == 0) {
+        _value = uint8_t(0);
+    } else if (strcmp(type_str.c_str(), "uint8") == 0) {
         _value = uint8_t(0);
     } else if (strcmp(type_str.c_str(), "int8") == 0) {
         _value = int8_t(0);

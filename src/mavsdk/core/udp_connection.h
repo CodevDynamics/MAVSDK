@@ -26,6 +26,18 @@ public:
 
     void add_remote(const std::string& remote_ip, int remote_port);
 
+    struct Remote {
+        std::string ip{};
+        int port_number{0};
+        std::chrono::time_point<std::chrono::steady_clock> last_received_time;
+
+        bool operator==(const UdpConnection::Remote& other) const
+        {
+            return ip == other.ip && port_number == other.port_number;
+        }
+    };
+    std::vector<Remote> remotes() { return _remotes; }
+
     // Non-copyable
     UdpConnection(const UdpConnection&) = delete;
     const UdpConnection& operator=(const UdpConnection&) = delete;
@@ -43,15 +55,6 @@ private:
     int _local_port_number;
 
     std::mutex _remote_mutex{};
-    struct Remote {
-        std::string ip{};
-        int port_number{0};
-
-        bool operator==(const UdpConnection::Remote& other) const
-        {
-            return ip == other.ip && port_number == other.port_number;
-        }
-    };
     std::vector<Remote> _remotes{};
 
     int _socket_fd{-1};

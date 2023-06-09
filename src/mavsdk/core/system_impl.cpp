@@ -222,7 +222,7 @@ void SystemImpl::process_heartbeat(const mavlink_message_t& message)
     // last enumerator.
     if (MAV_TYPE::MAV_TYPE_ENUM_END < heartbeat.type) {
         LogErr() << "type received in HEARTBEAT was not recognized";
-    } else {
+    } else if(message.compid == MAV_COMP_ID_AUTOPILOT1) {
         const auto new_vehicle_type = static_cast<MAV_TYPE>(heartbeat.type);
         if (heartbeat.autopilot != MAV_AUTOPILOT_INVALID && _vehicle_type != new_vehicle_type &&
             new_vehicle_type != MAV_TYPE_GENERIC) {

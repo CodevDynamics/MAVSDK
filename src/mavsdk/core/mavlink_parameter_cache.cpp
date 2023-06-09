@@ -103,10 +103,19 @@ MavlinkParameterCache::param_by_index(uint16_t param_index, bool including_exten
         return {};
     }
 
-    const auto& param = params[param_index];
+    auto param = params[param_index];
+    if(param.index != param_index) {
+        for (const auto& p : params) {
+            if (p.index == param_index) {
+                param = p;
+                break;
+            }
+        }
+    }
     // Check that the redundant index matches the actual vector index.
-    assert(param.index == param_index);
-    return {param};
+    if(param.index == param_index)
+        return {param};
+    else return {};
 }
 
 uint16_t MavlinkParameterCache::count(bool including_extended) const

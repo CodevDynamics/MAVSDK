@@ -7,7 +7,9 @@
 
 namespace mavsdk {
 
-MavlinkCommandReceiver::MavlinkCommandReceiver(MavsdkImpl& mavsdk_impl) : _mavsdk_impl(mavsdk_impl)
+MavlinkCommandReceiver::MavlinkCommandReceiver(Sender& sender, MavsdkImpl& mavsdk_impl)
+    : _sender(sender)
+    , _mavsdk_impl(mavsdk_impl)
 {
     _mavsdk_impl.mavlink_message_handler.register_one(
         MAVLINK_MSG_ID_COMMAND_LONG,
@@ -35,7 +37,8 @@ void MavlinkCommandReceiver::receive_command_int(const mavlink_message_t& messag
 
     bool support = false;
     for (auto& handler : _mavlink_command_int_handler_table) {
-        if (handler.cmd_id == cmd.command) {
+        if (handler.cmd_id == cmd.command &&
+            (cmd.target_component_id == _sender.get_own_component_id() || cmd.target_component_id == MAV_COMP_ID_ALL)) {
             // The client side can pack a COMMAND_ACK as a response to receiving the command.
             auto maybe_message = handler.callback(cmd);
             if (maybe_message) {
@@ -44,7 +47,7 @@ void MavlinkCommandReceiver::receive_command_int(const mavlink_message_t& messag
             support = true;
         }
     }
-    if(!support) {
+    if(!support && _sender.get_own_system_id() == cmd.target_system_id && _sender.get_own_component_id() == cmd.target_component_id) {
         LogWarn() << "CommandLong " << cmd.command << " UNSUPPORTED";
         mavlink_message_t msg = make_command_ack_message(cmd, MAV_RESULT_UNSUPPORTED);
         _mavsdk_impl.send_message(msg);
@@ -59,7 +62,8 @@ void MavlinkCommandReceiver::receive_command_long(const mavlink_message_t& messa
 
     bool support = false;
     for (auto& handler : _mavlink_command_long_handler_table) {
-        if (handler.cmd_id == cmd.command) {
+        if (handler.cmd_id == cmd.command &&
+            (cmd.target_component_id == _sender.get_own_component_id() || cmd.target_component_id == MAV_COMP_ID_ALL)) {
             // The client side can pack a COMMAND_ACK as a response to receiving the command.
             auto maybe_message = handler.callback(cmd);
             if (maybe_message) {
@@ -68,7 +72,7 @@ void MavlinkCommandReceiver::receive_command_long(const mavlink_message_t& messa
             support = true;
         }
     }
-    if(!support) {
+    if(!support && _sender.get_own_system_id() == cmd.target_system_id && _sender.get_own_component_id() == cmd.target_component_id) {
         LogWarn() << "CommandLong " << cmd.command << " UNSUPPORTED";
         mavlink_message_t msg = make_command_ack_message(cmd, MAV_RESULT_UNSUPPORTED);
         _mavsdk_impl.send_message(msg);

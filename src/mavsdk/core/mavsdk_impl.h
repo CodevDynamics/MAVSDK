@@ -20,7 +20,7 @@
 #include "callback_list.h"
 
 namespace mavsdk {
-
+class UdpConnection;
 class MavsdkImpl {
 public:
     /** @brief Default System ID for GCS configuration type. */
@@ -71,6 +71,7 @@ public:
 
     void set_configuration(Mavsdk::Configuration new_configuration);
     Mavsdk::Configuration get_configuration() const;
+    std::vector<std::string> get_udp_active_remote_ip();
 
     uint8_t get_own_system_id() const;
     uint8_t get_own_component_id() const;
@@ -121,6 +122,7 @@ private:
 
     std::mutex _connections_mutex{};
     std::vector<std::shared_ptr<Connection>> _connections{};
+    std::vector<std::shared_ptr<UdpConnection>> _udpConnections{};
 
     mutable std::recursive_mutex _systems_mutex{};
     std::vector<std::pair<uint8_t, std::shared_ptr<System>>> _systems{};

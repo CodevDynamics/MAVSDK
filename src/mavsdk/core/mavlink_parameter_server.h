@@ -44,6 +44,7 @@ public:
         Unknown,
     };
 
+    void publish_server_param(const std::string& name, bool extended);
     Result provide_server_param(const std::string& name, const ParamValue& param_value);
     Result provide_server_param_float(const std::string& name, float value);
     Result provide_server_param_int(const std::string& name, int32_t value);
