@@ -27,6 +27,7 @@ public:
     void disable() override;
 
     Mission::Result upload_mission(const Mission::MissionPlan& mission_plan);
+    bool refresh_mission_data(const Mission::MissionPlan& mission_plan);
 
     void upload_mission_async(
         const Mission::MissionPlan& mission_plan, const Mission::ResultCallback& callback);

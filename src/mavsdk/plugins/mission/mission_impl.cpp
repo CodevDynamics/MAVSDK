@@ -139,6 +139,19 @@ Mission::Result MissionImpl::upload_mission(const Mission::MissionPlan& mission_
     return fut.get();
 }
 
+bool MissionImpl::refresh_mission_data(const Mission::MissionPlan& mission_plan)
+{
+    if (_mission_data.last_upload.lock()) {
+        return false;
+    }
+
+    reset_mission_progress();
+
+    wait_for_protocol_async([mission_plan, this]() {
+        convert_to_int_items(mission_plan.mission_items);
+    });
+}
+
 void MissionImpl::upload_mission_async(
     const Mission::MissionPlan& mission_plan, const Mission::ResultCallback& callback)
 {
