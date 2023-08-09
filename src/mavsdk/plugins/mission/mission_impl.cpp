@@ -60,8 +60,6 @@ void MissionImpl::enable()
 
 void MissionImpl::disable()
 {
-    reset_mission_progress();
-    _gimbal_protocol = GimbalProtocol::Unknown;
 }
 
 void MissionImpl::deinit()
@@ -150,6 +148,8 @@ bool MissionImpl::refresh_mission_data(const Mission::MissionPlan& mission_plan)
     wait_for_protocol_async([mission_plan, this]() {
         convert_to_int_items(mission_plan.mission_items);
     });
+
+    return true;
 }
 
 void MissionImpl::upload_mission_async(
@@ -1017,9 +1017,9 @@ void MissionImpl::set_current_mission_item_async(
             if (callback) {
                 // FIXME: come up with better error code.
                 callback(Mission::Result::InvalidArgument);
-                return;
             }
         });
+        return;
     }
 
     _system_impl->mission_transfer().set_current_item_async(

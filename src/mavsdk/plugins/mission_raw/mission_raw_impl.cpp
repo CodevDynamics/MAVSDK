@@ -51,7 +51,6 @@ void MissionRawImpl::enable() {}
 
 void MissionRawImpl::disable()
 {
-    reset_mission_progress();
 }
 
 void MissionRawImpl::deinit()
@@ -497,9 +496,9 @@ void MissionRawImpl::set_current_mission_item_async(
         _system_impl->call_user_callback([callback]() {
             if (callback) {
                 callback(MissionRaw::Result::InvalidArgument);
-                return;
             }
         });
+        return;
     }
 
     _system_impl->mission_transfer().set_current_item_async(
