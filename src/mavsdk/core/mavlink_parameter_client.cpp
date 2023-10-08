@@ -444,7 +444,7 @@ void MavlinkParameterClient::do_work()
                     if (item.callback) {
                         auto callback = item.callback;
                         work_queue_guard.reset();
-                        item.callback(Result::ConnectionError, ParamValue{});
+                        callback(Result::ConnectionError, ParamValue{});
                     }
                     return;
                 }
@@ -462,7 +462,7 @@ void MavlinkParameterClient::do_work()
                     if (item.callback) {
                         auto callback = item.callback;
                         work_queue_guard.reset();
-                        item.callback(Result::ConnectionError, {});
+                        callback(Result::ConnectionError, {});
                     }
                     return;
                 }
@@ -1089,7 +1089,7 @@ void MavlinkParameterClient::receive_timeout()
                             if (item.callback) {
                                 auto callback = item.callback;
                                 work_queue_guard.reset();
-                                item.callback(Result::ConnectionError, {});
+                                callback(Result::ConnectionError, {});
                             }
                             return;
                         }
@@ -1101,7 +1101,7 @@ void MavlinkParameterClient::receive_timeout()
                         if (item.callback) {
                             auto callback = item.callback;
                             work_queue_guard.reset();
-                            item.callback(Result::Timeout, {});
+                            callback(Result::Timeout, {});
                         }
                         return;
                     }
