@@ -620,6 +620,24 @@ bool CameraDefinition::get_all_options(const std::string& name, std::vector<Para
     return true;
 }
 
+bool CameraDefinition::get_all_options(const std::string& name, std::vector<std::string>& names)
+{
+    std::lock_guard<std::mutex> lock(_mutex);
+
+    names.clear();
+
+    if (_parameter_map.find(name) == _parameter_map.end()) {
+        LogErr() << "Unknown parameter to get all options";
+        return false;
+    }
+
+    for (const auto& option : _parameter_map[name]->options) {
+        names.push_back(option->name);
+    }
+
+    return true;
+}
+
 bool CameraDefinition::get_possible_options(
     const std::string& name, std::vector<ParamValue>& values)
 {

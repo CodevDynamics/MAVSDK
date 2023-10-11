@@ -9,6 +9,7 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <optional>
 
 namespace mavsdk {
 
@@ -38,6 +39,7 @@ public:
     bool get_option_value(
         const std::string& param_name, const std::string& option_value, ParamValue& value);
     bool get_all_options(const std::string& name, std::vector<ParamValue>& values);
+    bool get_all_options(const std::string& name, std::vector<std::string>& names);
     bool get_possible_options(const std::string& name, std::vector<ParamValue>& values);
 
     bool is_setting_range(const std::string& name);

@@ -263,6 +263,74 @@ bool ParamValue::set_from_mavlink_param_ext_value(
     return true;
 }
 
+bool ParamValue::set_from_mavlink_param_ext_ack(
+    const mavlink_param_ext_ack_t& mavlink_ext_ack)
+{
+    switch (mavlink_ext_ack.param_type) {
+        case MAV_PARAM_EXT_TYPE_UINT8: {
+            uint8_t temp;
+            memcpy(&temp, &mavlink_ext_ack.param_value[0], sizeof(temp));
+            _value = temp;
+        } break;
+        case MAV_PARAM_EXT_TYPE_INT8: {
+            int8_t temp;
+            memcpy(&temp, &mavlink_ext_ack.param_value[0], sizeof(temp));
+            _value = temp;
+        } break;
+        case MAV_PARAM_EXT_TYPE_UINT16: {
+            uint16_t temp;
+            memcpy(&temp, &mavlink_ext_ack.param_value[0], sizeof(temp));
+            _value = temp;
+        } break;
+        case MAV_PARAM_EXT_TYPE_INT16: {
+            int16_t temp;
+            memcpy(&temp, &mavlink_ext_ack.param_value[0], sizeof(temp));
+            _value = temp;
+        } break;
+        case MAV_PARAM_EXT_TYPE_UINT32: {
+            uint32_t temp;
+            memcpy(&temp, &mavlink_ext_ack.param_value[0], sizeof(temp));
+            _value = temp;
+        } break;
+        case MAV_PARAM_EXT_TYPE_INT32: {
+            int32_t temp;
+            memcpy(&temp, &mavlink_ext_ack.param_value[0], sizeof(temp));
+            _value = temp;
+        } break;
+        case MAV_PARAM_EXT_TYPE_UINT64: {
+            uint64_t temp;
+            memcpy(&temp, &mavlink_ext_ack.param_value[0], sizeof(temp));
+            _value = temp;
+        } break;
+        case MAV_PARAM_EXT_TYPE_INT64: {
+            int64_t temp;
+            memcpy(&temp, &mavlink_ext_ack.param_value[0], sizeof(temp));
+            _value = temp;
+        } break;
+        case MAV_PARAM_EXT_TYPE_REAL32: {
+            float temp;
+            memcpy(&temp, &mavlink_ext_ack.param_value[0], sizeof(temp));
+            _value = temp;
+        } break;
+        case MAV_PARAM_EXT_TYPE_REAL64: {
+            double temp;
+            memcpy(&temp, &mavlink_ext_ack.param_value[0], sizeof(temp));
+            _value = temp;
+        } break;
+        case MAV_PARAM_EXT_TYPE_CUSTOM: {
+            std::size_t len = strnlen(mavlink_ext_ack.param_value, 128);
+            _value =
+                std::string(mavlink_ext_ack.param_value, mavlink_ext_ack.param_value + len);
+        } break;
+        default:
+            // This would be worrying
+            LogErr() << "Error: unknown mavlink ext param type";
+            assert(false);
+            return false;
+    }
+    return true;
+}
+
 bool ParamValue::set_from_xml(const std::string& type_str, const std::string& value_str)
 {
     if (strcmp(type_str.c_str(), "uint8") == 0 || strcmp(type_str.c_str(), "bool") == 0) {

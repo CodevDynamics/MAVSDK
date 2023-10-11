@@ -274,7 +274,14 @@ void SystemImpl::process_autopilot_version(const mavlink_message_t& message)
 
 void SystemImpl::heartbeats_timed_out()
 {
-    LogInfo() << "heartbeats timed out";
+    std::stringstream timeout_str;
+    timeout_str << "heartbeats timed out, sys_id: " << static_cast<int>(get_system_id());
+    timeout_str << ", comp_ids: ";
+    auto comp_ids = component_ids();
+    for(auto id : comp_ids) {
+        timeout_str << static_cast<int>(id) << " ";
+    }
+    LogInfo() << timeout_str.str();
     set_disconnected();
 }
 

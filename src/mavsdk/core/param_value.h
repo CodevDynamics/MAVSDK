@@ -22,6 +22,7 @@ public:
     bool set_from_mavlink_param_set_bytewise(const mavlink_param_set_t& mavlink_set);
     bool set_from_mavlink_param_ext_set(const mavlink_param_ext_set_t& mavlink_ext_set);
     bool set_from_mavlink_param_ext_value(const mavlink_param_ext_value_t& mavlink_ext_value);
+    bool set_from_mavlink_param_ext_ack(const mavlink_param_ext_ack_t& mavlink_ext_ack);
     bool set_from_xml(const std::string& type_str, const std::string& value_str);
     bool set_to_min_from_xml_type(const std::string& type_str);
     bool set_to_max_from_xml_type(const std::string& type_str);
