@@ -210,6 +210,8 @@ void CameraImpl::manual_enable()
     _system_impl->add_call_every(
         [this]() { request_camera_information(); }, 10.0, &_camera_information_call_every_cookie);
 
+    _system_impl->add_call_every([this]() { request_status(); }, 5.0, &_status.call_every_cookie);
+
     // for backwards compatibility with Yuneec drones
     if (_system_impl->has_autopilot()) {
         request_flight_information();
@@ -232,6 +234,7 @@ void CameraImpl::manual_disable()
 {
     invalidate_params();
     _system_impl->remove_call_every(_camera_information_call_every_cookie);
+    _system_impl->remove_call_every(_status.call_every_cookie);
 
     if (_flight_information_call_every_cookie) {
         _system_impl->remove_call_every(_flight_information_call_every_cookie);
@@ -597,21 +600,6 @@ CameraImpl::subscribe_information(const Camera::InformationCallback& callback)
     std::lock_guard<std::mutex> lock(_information.mutex);
     auto handle = _information.subscription_callbacks.subscribe(callback);
 
-    // If there was already a subscription, cancel the call
-    if (_status.call_every_cookie) {
-        _system_impl->remove_call_every(_status.call_every_cookie);
-    }
-
-    if (callback) {
-        if (_status.call_every_cookie == nullptr) {
-            _system_impl->add_call_every(
-                [this]() { request_status(); }, 5.0, &_status.call_every_cookie);
-        }
-    } else {
-        _system_impl->remove_call_every(_status.call_every_cookie);
-        _status.call_every_cookie = nullptr;
-    }
-
     return handle;
 }
 
@@ -889,18 +877,7 @@ void CameraImpl::request_status()
 Camera::StatusHandle CameraImpl::subscribe_status(const Camera::StatusCallback& callback)
 {
     std::lock_guard<std::mutex> lock(_status.mutex);
-
     auto handle = _status.subscription_callbacks.subscribe(callback);
-
-    if (callback) {
-        if (_status.call_every_cookie == nullptr) {
-            _system_impl->add_call_every(
-                [this]() { request_status(); }, 5.0, &_status.call_every_cookie);
-        }
-    } else {
-        _system_impl->remove_call_every(_status.call_every_cookie);
-        _status.call_every_cookie = nullptr;
-    }
 
     return handle;
 }
@@ -979,35 +956,56 @@ void CameraImpl::process_storage_information(const mavlink_message_t& message)
 
     {
         std::lock_guard<std::mutex> lock(_status.mutex);
-        switch (storage_information.status) {
-            case STORAGE_STATUS_EMPTY:
-                _status.data.storage_status = Camera::Status::StorageStatus::NotAvailable;
-                break;
-            case STORAGE_STATUS_UNFORMATTED:
-                _status.data.storage_status = Camera::Status::StorageStatus::Unformatted;
-                break;
-            case STORAGE_STATUS_READY:
-                _status.data.storage_status = Camera::Status::StorageStatus::Formatted;
-                break;
-            case STORAGE_STATUS_NOT_SUPPORTED:
-                _status.data.storage_status = Camera::Status::StorageStatus::NotSupported;
-                break;
-            default:
-                _status.data.storage_status = Camera::Status::StorageStatus::NotSupported;
-                LogErr() << "Unknown storage status received.";
-                break;
-        }
-
+        _status.data.storage_status = storage_status_from_mavlink(storage_information.status);
         _status.data.available_storage_mib = storage_information.available_capacity;
         _status.data.used_storage_mib = storage_information.used_capacity;
         _status.data.total_storage_mib = storage_information.total_capacity;
         _status.data.storage_id = storage_information.storage_id;
-        _status.data.storage_type =
-            static_cast<Camera::Status::StorageType>(storage_information.type);
+        _status.data.storage_type = storage_type_from_mavlink(storage_information.type);
         _status.received_storage_information = true;
     }
 
     check_status();
+}
+
+Camera::Status::StorageStatus
+CameraImpl::storage_status_from_mavlink(const int storage_status) const
+{
+    switch (storage_status) {
+        case STORAGE_STATUS_EMPTY:
+            return Camera::Status::StorageStatus::NotAvailable;
+        case STORAGE_STATUS_UNFORMATTED:
+            return Camera::Status::StorageStatus::Unformatted;
+        case STORAGE_STATUS_READY:
+            return Camera::Status::StorageStatus::Formatted;
+            break;
+        case STORAGE_STATUS_NOT_SUPPORTED:
+            return Camera::Status::StorageStatus::NotSupported;
+        default:
+            LogErr() << "Unknown storage status received.";
+            return Camera::Status::StorageStatus::NotSupported;
+    }
+}
+
+Camera::Status::StorageType CameraImpl::storage_type_from_mavlink(const int storage_type) const
+{
+    switch (storage_type) {
+        default:
+            LogErr() << "Unknown storage_type enum value: " << storage_type;
+        // FALLTHROUGH
+        case STORAGE_TYPE_UNKNOWN:
+            return mavsdk::Camera::Status::StorageType::Unknown;
+        case STORAGE_TYPE_USB_STICK:
+            return mavsdk::Camera::Status::StorageType::UsbStick;
+        case STORAGE_TYPE_SD:
+            return mavsdk::Camera::Status::StorageType::Sd;
+        case STORAGE_TYPE_MICROSD:
+            return mavsdk::Camera::Status::StorageType::Microsd;
+        case STORAGE_TYPE_HD:
+            return mavsdk::Camera::Status::StorageType::Hd;
+        case STORAGE_TYPE_OTHER:
+            return mavsdk::Camera::Status::StorageType::Other;
+    }
 }
 
 void CameraImpl::process_camera_image_captured(const mavlink_message_t& message)
@@ -1140,6 +1138,11 @@ void CameraImpl::process_camera_information(const mavlink_message_t& message)
     mavlink_camera_information_t camera_information;
     mavlink_msg_camera_information_decode(&message, &camera_information);
 
+    // Make sure all strings are zero terminated, so we don't overrun anywhere.
+    camera_information.vendor_name[sizeof(camera_information.vendor_name) - 1] = '\0';
+    camera_information.model_name[sizeof(camera_information.model_name) - 1] = '\0';
+    camera_information.cam_definition_uri[sizeof(camera_information.cam_definition_uri) - 1] = '\0';
+
     std::lock_guard<std::mutex> lock(_information.mutex);
 
     _information.data.vendor_name = (char*)(camera_information.vendor_name);
@@ -1229,30 +1232,39 @@ bool CameraImpl::load_stored_definition(
     const mavlink_camera_information_t& camera_information, std::string& camera_definition_out)
 {
     // TODO: we might also try to support the correct version of the xml files.
-    if (strcmp((const char*)(camera_information.vendor_name), "Yuneec") == 0) {
-        if (strcmp((const char*)(camera_information.model_name), "E90") == 0) {
+
+    const auto vendor_name = std::string(
+        reinterpret_cast<const char*>(std::begin(camera_information.vendor_name)),
+        reinterpret_cast<const char*>(std::end(camera_information.vendor_name)));
+
+    const auto model_name = std::string(
+        reinterpret_cast<const char*>(std::begin(camera_information.model_name)),
+        reinterpret_cast<const char*>(std::end(camera_information.model_name)));
+
+    if (vendor_name == "Yuneec") {
+        if (model_name == "E90") {
             LogInfo() << "Using cached file for Yuneec E90.";
             camera_definition_out = e90xml;
             return true;
-        } else if (strcmp((const char*)(camera_information.model_name), "E50") == 0) {
+        } else if (model_name == "E50") {
             LogInfo() << "Using cached file for Yuneec E50.";
             camera_definition_out = e50xml;
             return true;
-        } else if (strcmp((const char*)(camera_information.model_name), "CGOET") == 0) {
+        } else if (model_name == "CGOET") {
             LogInfo() << "Using cached file for Yuneec ET.";
             camera_definition_out = cgoetxml;
             return true;
-        } else if (strcmp((const char*)(camera_information.model_name), "E10T") == 0) {
+        } else if (model_name == "E10T") {
             LogInfo() << "Using cached file for Yuneec E10T.";
             camera_definition_out = e10txml;
             return true;
-        } else if (strcmp((const char*)(camera_information.model_name), "E30Z") == 0) {
+        } else if (model_name == "E30Z") {
             LogInfo() << "Using cached file for Yuneec E30Z.";
             camera_definition_out = e30zxml;
             return true;
         }
-    } else if (strcmp((const char*)(camera_information.vendor_name), "Sony") == 0) {
-        if (strcmp((const char*)(camera_information.model_name), "ILCE-7RM4") == 0) {
+    } else if (vendor_name == "Sony") {
+        if (model_name == "ILCE-7RM4") {
             LogInfo() << "Using cached file for Sony ILCE-7RM4.";
             camera_definition_out = ILCE7RM4xml;
             return true;

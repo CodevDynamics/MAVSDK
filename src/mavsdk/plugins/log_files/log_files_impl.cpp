@@ -1,14 +1,17 @@
 #include "log_files_impl.h"
+#include "mavlink_address.h"
 #include "mavsdk_impl.h"
-#include "filesystem_include.h"
 #include "unused.h"
 
 #include <algorithm>
 #include <cmath>
 #include <ctime>
 #include <cstring>
+#include <filesystem>
 
 namespace mavsdk {
+
+namespace fs = std::filesystem;
 
 LogFilesImpl::LogFilesImpl(System& system) : PluginImplBase(system)
 {
@@ -61,14 +64,17 @@ void LogFilesImpl::disable() {}
 
 void LogFilesImpl::request_end()
 {
-    mavlink_message_t msg;
-    mavlink_msg_log_request_end_pack(
-        _system_impl->get_own_system_id(),
-        _system_impl->get_own_component_id(),
-        &msg,
-        _system_impl->get_system_id(),
-        MAV_COMP_ID_AUTOPILOT1);
-    _system_impl->send_message(msg);
+    _system_impl->queue_message([&](MavlinkAddress mavlink_address, uint8_t channel) {
+        mavlink_message_t message;
+        mavlink_msg_log_request_end_pack_chan(
+            mavlink_address.system_id,
+            mavlink_address.component_id,
+            channel,
+            &message,
+            _system_impl->get_system_id(),
+            MAV_COMP_ID_AUTOPILOT1);
+        return message;
+    });
 }
 
 std::pair<LogFiles::Result, std::vector<LogFiles::Entry>> LogFilesImpl::get_entries()
@@ -93,8 +99,9 @@ void LogFilesImpl::get_entries_async(LogFiles::GetEntriesCallback callback)
         _entries.retries = 0;
     }
 
+    // This first step can take a moment, on PX4 with 100+ logs I see about 2-3s.
     _system_impl->register_timeout_handler(
-        [this]() { list_timeout(); }, LIST_TIMEOUT_S, &_entries.cookie);
+        [this]() { list_timeout(); }, _system_impl->timeout_s() * 10.0, &_entries.cookie);
 
     request_list_entry(-1);
 }
@@ -110,17 +117,19 @@ void LogFilesImpl::request_list_entry(int entry_id)
         index_max = entry_id;
     }
 
-    mavlink_message_t msg;
-    mavlink_msg_log_request_list_pack(
-        _system_impl->get_own_system_id(),
-        _system_impl->get_own_component_id(),
-        &msg,
-        _system_impl->get_system_id(),
-        MAV_COMP_ID_AUTOPILOT1,
-        index_min,
-        index_max);
-
-    _system_impl->send_message(msg);
+    _system_impl->queue_message([&](MavlinkAddress mavlink_address, uint8_t channel) {
+        mavlink_message_t message;
+        mavlink_msg_log_request_list_pack_chan(
+            mavlink_address.system_id,
+            mavlink_address.component_id,
+            channel,
+            &message,
+            _system_impl->get_system_id(),
+            MAV_COMP_ID_AUTOPILOT1,
+            index_min,
+            index_max);
+        return message;
+    });
 }
 
 void LogFilesImpl::process_log_entry(const mavlink_message_t& message)
@@ -197,7 +206,7 @@ void LogFilesImpl::list_timeout()
                 }
             }
             _system_impl->register_timeout_handler(
-                [this]() { list_timeout(); }, LIST_TIMEOUT_S, &_entries.cookie);
+                [this]() { list_timeout(); }, _system_impl->timeout_s() * 10.0, &_entries.cookie);
             _entries.retries++;
         }
     }
@@ -298,7 +307,7 @@ void LogFilesImpl::download_log_file_async(
             ((part_size % MAVLINK_MSG_LOG_DATA_FIELD_DATA_LEN) != 0));
 
         _system_impl->register_timeout_handler(
-            [this]() { LogFilesImpl::data_timeout(); }, DATA_TIMEOUT_S, &_data.cookie);
+            [this]() { LogFilesImpl::data_timeout(); }, _system_impl->timeout_s(), &_data.cookie);
 
         request_log_data(_data.id, _data.part_start, _data.bytes.size());
 
@@ -315,14 +324,17 @@ void LogFilesImpl::download_log_file_async(
 
 LogFiles::Result LogFilesImpl::erase_all_log_files()
 {
-    mavlink_message_t msg;
-    mavlink_msg_log_erase_pack(
-        _system_impl->get_own_system_id(),
-        _system_impl->get_own_component_id(),
-        &msg,
-        _system_impl->get_system_id(),
-        MAV_COMP_ID_AUTOPILOT1);
-    _system_impl->send_message(msg);
+    _system_impl->queue_message([&](MavlinkAddress mavlink_address, uint8_t channel) {
+        mavlink_message_t message;
+        mavlink_msg_log_erase_pack_chan(
+            mavlink_address.system_id,
+            mavlink_address.component_id,
+            channel,
+            &message,
+            _system_impl->get_system_id(),
+            MAV_COMP_ID_AUTOPILOT1);
+        return message;
+    });
 
     // TODO: find a good way to know about the success or failure of the operation
     return LogFiles::Result::Success;
@@ -457,17 +469,20 @@ void LogFilesImpl::check_part()
 void LogFilesImpl::request_log_data(unsigned id, unsigned start, unsigned count)
 {
     // LogDebug() << "requesting: " << start << ".." << start+count << " (" << id << ")";
-    mavlink_message_t msg;
-    mavlink_msg_log_request_data_pack(
-        _system_impl->get_own_system_id(),
-        _system_impl->get_own_component_id(),
-        &msg,
-        _system_impl->get_system_id(),
-        MAV_COMP_ID_AUTOPILOT1,
-        id,
-        start,
-        count);
-    _system_impl->send_message(msg);
+    _system_impl->queue_message([&](MavlinkAddress mavlink_address, uint8_t channel) {
+        mavlink_message_t message;
+        mavlink_msg_log_request_data_pack_chan(
+            mavlink_address.system_id,
+            mavlink_address.component_id,
+            channel,
+            &message,
+            _system_impl->get_system_id(),
+            MAV_COMP_ID_AUTOPILOT1,
+            id,
+            start,
+            count);
+        return message;
+    });
 }
 
 void LogFilesImpl::data_timeout()
@@ -475,7 +490,7 @@ void LogFilesImpl::data_timeout()
     {
         std::lock_guard<std::mutex> lock(_data.mutex);
         _system_impl->register_timeout_handler(
-            [this]() { LogFilesImpl::data_timeout(); }, DATA_TIMEOUT_S, &_data.cookie);
+            [this]() { LogFilesImpl::data_timeout(); }, _system_impl->timeout_s(), &_data.cookie);
         _data.rerequesting = true;
         check_part();
     }

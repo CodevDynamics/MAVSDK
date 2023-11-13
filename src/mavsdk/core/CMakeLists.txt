@@ -3,6 +3,12 @@ find_package(Threads REQUIRED)
 
 find_package(MAVLink REQUIRED)
 
+get_target_property(
+    MAVLINK_INCLUDE_DIR
+    MAVLink::mavlink
+    INTERFACE_INCLUDE_DIRECTORIES
+)
+
 configure_file(version.h.in version.h)
 configure_file(include/mavsdk/mavlink_include.h.in include/mavsdk/mavlink_include.h)
 
@@ -16,15 +22,16 @@ target_sources(mavsdk
     system.cpp
     system_impl.cpp
     flight_mode.cpp
-    fs.cpp
     mavsdk.cpp
     mavsdk_impl.cpp
     http_loader.cpp
     mavlink_channels.cpp
     mavlink_command_receiver.cpp
     mavlink_command_sender.cpp
-    mavlink_ftp.cpp
-    mavlink_mission_transfer.cpp
+    mavlink_ftp_client.cpp
+    mavlink_ftp_server.cpp
+    mavlink_mission_transfer_client.cpp
+    mavlink_mission_transfer_server.cpp
     mavlink_parameter_cache.cpp
     mavlink_parameter_client.cpp
     mavlink_parameter_server.cpp
@@ -54,9 +61,8 @@ target_sources(mavsdk
 
 cmake_policy(SET CMP0079 NEW)
 target_link_libraries(mavsdk
-    PUBLIC
-    MAVLink::mavlink
     PRIVATE
+    MAVLink::mavlink
     CURL::libcurl
     Threads::Threads
 )
@@ -102,6 +108,7 @@ target_include_directories(mavsdk
     PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/mavsdk>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include/mavsdk>
+    $<BUILD_INTERFACE:${MAVLINK_INCLUDE_DIR}>
     $<INSTALL_INTERFACE:include>
     PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -126,7 +133,12 @@ install(FILES
     include/mavsdk/server_plugin_base.h
     include/mavsdk/geometry.h
     include/mavsdk/server_component.h
+    include/mavsdk/mavlink_address.h
     ${CMAKE_CURRENT_BINARY_DIR}/include/mavsdk/mavlink_include.h
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/mavsdk"
+)
+
+install(DIRECTORY ${MAVLINK_INCLUDE_DIR}/mavlink
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/mavsdk"
 )
 
@@ -136,7 +148,6 @@ list(APPEND UNIT_TEST_SOURCES
     ${PROJECT_SOURCE_DIR}/mavsdk/core/cli_arg_test.cpp
     ${PROJECT_SOURCE_DIR}/mavsdk/core/curl_test.cpp
     ${PROJECT_SOURCE_DIR}/mavsdk/core/locked_queue_test.cpp
-    ${PROJECT_SOURCE_DIR}/mavsdk/core/fs_test.cpp
     ${PROJECT_SOURCE_DIR}/mavsdk/core/geometry_test.cpp
     # TODO: add this again
     #${PROJECT_SOURCE_DIR}/mavsdk/core/http_loader_test.cpp
@@ -144,7 +155,8 @@ list(APPEND UNIT_TEST_SOURCES
     ${PROJECT_SOURCE_DIR}/mavsdk/core/mavsdk_test.cpp
     ${PROJECT_SOURCE_DIR}/mavsdk/core/mavsdk_time_test.cpp
     ${PROJECT_SOURCE_DIR}/mavsdk/core/mavlink_channels_test.cpp
-    ${PROJECT_SOURCE_DIR}/mavsdk/core/mavlink_mission_transfer_test.cpp
+    ${PROJECT_SOURCE_DIR}/mavsdk/core/mavlink_mission_transfer_client_test.cpp
+    ${PROJECT_SOURCE_DIR}/mavsdk/core/mavlink_mission_transfer_server_test.cpp
     ${PROJECT_SOURCE_DIR}/mavsdk/core/mavlink_statustext_handler_test.cpp
     ${PROJECT_SOURCE_DIR}/mavsdk/core/ringbuffer_test.cpp
     ${PROJECT_SOURCE_DIR}/mavsdk/core/safe_queue_test.cpp

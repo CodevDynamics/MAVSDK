@@ -1,13 +1,17 @@
 #pragma once
 
+#include <cstdint>
 #include <mutex>
+#include <sys/types.h>
 #include <utility>
 #include <vector>
 #include <atomic>
 #include <thread>
 
+#include "autopilot.h"
 #include "call_every_handler.h"
 #include "connection.h"
+#include "handle.h"
 #include "mavsdk.h"
 #include "mavlink_include.h"
 #include "mavlink_address.h"
@@ -16,6 +20,7 @@
 #include "safe_queue.h"
 #include "server_component.h"
 #include "system.h"
+#include "sender.h"
 #include "timeout_handler.h"
 #include "callback_list.h"
 
@@ -49,21 +54,22 @@ public:
 
     void forward_message(mavlink_message_t& message, Connection* connection);
     void receive_message(mavlink_message_t& message, Connection* connection);
-    bool send_message(mavlink_message_t& message);
 
-    ConnectionResult
+    std::pair<ConnectionResult, Mavsdk::ConnectionHandle>
     add_any_connection(const std::string& connection_url, ForwardingOption forwarding_option);
-    ConnectionResult add_udp_connection(
+    std::pair<ConnectionResult, Mavsdk::ConnectionHandle> add_udp_connection(
         const std::string& local_ip, int local_port_number, ForwardingOption forwarding_option);
-    ConnectionResult add_tcp_connection(
+    std::pair<ConnectionResult, Mavsdk::ConnectionHandle> add_tcp_connection(
         const std::string& remote_ip, int remote_port, ForwardingOption forwarding_option);
-    ConnectionResult add_serial_connection(
+    std::pair<ConnectionResult, Mavsdk::ConnectionHandle> add_serial_connection(
         const std::string& dev_path,
         int baudrate,
         bool flow_control,
         ForwardingOption forwarding_option);
-    ConnectionResult setup_udp_remote(
+    std::pair<ConnectionResult, Mavsdk::ConnectionHandle> setup_udp_remote(
         const std::string& remote_ip, int remote_port, ForwardingOption forwarding_option);
+
+    void remove_connection(Mavsdk::ConnectionHandle handle);
 
     std::vector<std::shared_ptr<System>> systems() const;
 
@@ -73,8 +79,14 @@ public:
     Mavsdk::Configuration get_configuration() const;
     std::vector<std::string> get_udp_active_remote_ip();
 
+    bool send_message(mavlink_message_t& message);
     uint8_t get_own_system_id() const;
     uint8_t get_own_component_id() const;
+    uint8_t channel() const;
+    Autopilot autopilot() const;
+
+    Sender& sender();
+
     uint8_t get_mav_type() const;
 
     Mavsdk::NewSystemHandle subscribe_on_new_system(const Mavsdk::NewSystemCallback& callback);
@@ -93,6 +105,7 @@ public:
         Mavsdk::ServerComponentType server_component_type, unsigned instance = 0);
     std::shared_ptr<ServerComponent> server_component_by_id(uint8_t component_id);
 
+    Time time{};
     TimeoutHandler timeout_handler;
     CallEveryHandler call_every_handler;
 
@@ -104,12 +117,12 @@ public:
     double timeout_s() const { return _timeout_s; };
 
     MavlinkMessageHandler mavlink_message_handler{};
-    Time time{};
+
+    ServerComponentImpl& default_server_component_impl();
 
 private:
-    void add_connection(const std::shared_ptr<Connection>&);
-    void make_system_with_component(
-        uint8_t system_id, uint8_t component_id, bool always_connected = false);
+    Mavsdk::ConnectionHandle add_connection(const std::shared_ptr<Connection>&);
+    void make_system_with_component(uint8_t system_id, uint8_t component_id);
 
     void work_thread();
     void process_user_callbacks_thread();
@@ -121,7 +134,12 @@ private:
     static uint8_t get_target_component_id(const mavlink_message_t& message);
 
     std::mutex _connections_mutex{};
-    std::vector<std::shared_ptr<Connection>> _connections{};
+    uint64_t _connections_handle_id{1};
+    struct ConnectionEntry {
+        std::shared_ptr<Connection> connection;
+        Handle<> handle;
+    };
+    std::vector<ConnectionEntry> _connections{};
     std::vector<std::shared_ptr<UdpConnection>> _udpConnections{};
 
     mutable std::recursive_mutex _systems_mutex{};
@@ -132,8 +150,6 @@ private:
     std::shared_ptr<ServerComponent> _default_server_component{nullptr};
 
     CallbackList<> _new_system_callbacks{};
-
-    Time _time{};
 
     Mavsdk::Configuration _configuration{Mavsdk::Configuration::UsageType::GroundStation};
 

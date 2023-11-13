@@ -1221,11 +1221,25 @@ void TelemetryImpl::process_battery_status(const mavlink_message_t& message)
                                        static_cast<float>(NAN) :
                                        bat_status.temperature * 1e-2f; // cdegC to degC
     new_battery.voltage_v = 0.0f;
-    for (int i = 0; i < 255; i++) {
-        if (bat_status.voltages[i] == std::numeric_limits<uint16_t>::max())
+    for (int i = 0; i < 10; ++i) {
+        if (bat_status.voltages[i] == std::numeric_limits<uint16_t>::max()) {
             break;
+        }
         new_battery.voltage_v += static_cast<float>(bat_status.voltages[i]) * 1e-3f;
     }
+
+    for (int i = 0; i < 4; ++i) {
+        if (bat_status.voltages_ext[i] == std::numeric_limits<uint16_t>::max()) {
+            // Some implementations out there set it to UINT16_MAX to signal invalid.
+            // That's not up to the spec but we can ignore it nevertheless to be backwards
+            // compatible.
+            break;
+        } else if (bat_status.voltages_ext[i] > 1) {
+            // A value of 1 means 0 mV.
+            new_battery.voltage_v += static_cast<float>(bat_status.voltages_ext[i]) * 1e-3f;
+        }
+    }
+
     new_battery.remaining_percent = bat_status.battery_remaining;
     new_battery.current_battery_a = (bat_status.current_battery == -1) ?
                                         static_cast<float>(NAN) :
@@ -2690,13 +2704,13 @@ void TelemetryImpl::check_calibration()
         std::lock_guard<std::mutex> lock(_health_mutex);
         if ((_has_received_gyro_calibration && _has_received_accel_calibration &&
              _has_received_mag_calibration) ||
-            _has_received_hitl_param) {
+            _hitl_enabled) {
             _system_impl->remove_call_every(_calibration_cookie);
             return;
         }
     }
     if (_system_impl->has_autopilot()) {
-        if (_system_impl->autopilot() == SystemImpl::Autopilot::ArduPilot) {
+        if (_system_impl->autopilot() == Autopilot::ArduPilot) {
             // We need to ask for the home position from ArduPilot
             request_home_position_async();
 
@@ -2799,7 +2813,7 @@ void TelemetryImpl::check_calibration()
 
 void TelemetryImpl::process_parameter_update(const std::string& name)
 {
-    if (_system_impl->autopilot() == SystemImpl::Autopilot::ArduPilot) {
+    if (_system_impl->autopilot() == Autopilot::ArduPilot) {
         if (name.compare("INS_GYROFFS_X") == 0) {
             _system_impl->get_param_float_async(
                 std::string("INS_GYROFFS_X"),

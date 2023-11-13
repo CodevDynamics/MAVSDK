@@ -49,6 +49,10 @@ else()
         endif()
 
         set(warnings "${warnings} -Wlogical-op")
+
+        # MAVLink warnings
+        set(warnings "${warnings} -Wno-address-of-packed-member")
+
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         set(warnings "${warnings} -Wno-missing-braces -Wno-unused-lambda-capture")
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
@@ -88,6 +92,11 @@ endif()
 if(LSAN)
     set(CMAKE_C_FLAGS "-fsanitize=leak ${CMAKE_C_FLAGS}")
     set(CMAKE_CXX_FLAGS "-fsanitize=leak ${CMAKE_C_FLAGS}")
+endif()
+
+if(TSAN)
+    set(CMAKE_C_FLAGS "-fsanitize=thread -fsanitize-ignorelist=${PROJECT_SOURCE_DIR}/../tools/fsanitize-ignorelist.txt ${CMAKE_C_FLAGS}")
+    set(CMAKE_CXX_FLAGS "-fsanitize=thread -fsanitize-ignorelist=${PROJECT_SOURCE_DIR}/../tools/fsanitize-ignorelist.txt ${CMAKE_CXX_FLAGS}")
 endif()
 
 set(CMAKE_CXX_FLAGS_COVERAGE "${CMAKE_CXX_FLAGS_COVERAGE} --coverage")

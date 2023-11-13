@@ -2,6 +2,7 @@
 #include "mavsdk_impl.h"
 #include "mavlink_include.h"
 #include "system_impl.h"
+#include "server_component_impl.h"
 #include "plugin_impl_base.h"
 #include "px4_custom_mode.h"
 #include "ardupilot_custom_mode.h"
@@ -20,20 +21,19 @@ template class CallbackList<bool>;
 template class CallbackList<System::ComponentType>;
 template class CallbackList<System::ComponentType, uint8_t>;
 
-SystemImpl::SystemImpl(MavsdkImpl& parent) :
-    Sender(),
-    _mavsdk_impl(parent),
+SystemImpl::SystemImpl(MavsdkImpl& mavsdk_impl) :
+    _mavsdk_impl(mavsdk_impl),
     _command_sender(*this),
     _timesync(*this),
     _ping(*this),
-    _mission_transfer(
-        *this,
+    _mission_transfer_client(
+        _mavsdk_impl.default_server_component_impl().sender(),
         _mavsdk_impl.mavlink_message_handler,
         _mavsdk_impl.timeout_handler,
         [this]() { return timeout_s(); }),
     _request_message(
         *this, _command_sender, _mavsdk_impl.mavlink_message_handler, _mavsdk_impl.timeout_handler),
-    _mavlink_ftp(*this)
+    _mavlink_ftp_client(*this)
 {
     _system_thread = new std::thread(&SystemImpl::system_thread, this);
 }
@@ -43,9 +43,7 @@ SystemImpl::~SystemImpl()
     _should_exit = true;
     _mavsdk_impl.mavlink_message_handler.unregister_all(this);
 
-    if (!_always_connected) {
-        unregister_timeout_handler(_heartbeat_timeout_cookie);
-    }
+    unregister_timeout_handler(_heartbeat_timeout_cookie);
 
     if (_system_thread != nullptr) {
         _system_thread->join();
@@ -54,16 +52,11 @@ SystemImpl::~SystemImpl()
     }
 }
 
-void SystemImpl::init(uint8_t system_id, uint8_t comp_id, bool connected)
+void SystemImpl::init(uint8_t system_id, uint8_t comp_id)
 {
     _target_address.system_id = system_id;
     // We use this as a default.
     _target_address.component_id = MAV_COMP_ID_AUTOPILOT1;
-
-    if (connected) {
-        _always_connected = true;
-        set_connected();
-    }
 
     _mavsdk_impl.mavlink_message_handler.register_one(
         MAVLINK_MSG_ID_HEARTBEAT,
@@ -268,7 +261,7 @@ void SystemImpl::process_autopilot_version(const mavlink_message_t& message)
     mavlink_autopilot_version_t autopilot_version;
     mavlink_msg_autopilot_version_decode(&message, &autopilot_version);
 
-    _mission_transfer.set_int_messages_supported(
+    _mission_transfer_client.set_int_messages_supported(
         autopilot_version.capabilities & MAV_PROTOCOL_CAPABILITY_MISSION_INT);
 }
 
@@ -298,11 +291,12 @@ void SystemImpl::system_thread()
         }
         _command_sender.do_work();
         _timesync.do_work();
-        _mission_transfer.do_work();
+        _mission_transfer_client.do_work();
+        _mavlink_ftp_client.do_work();
 
         if (_mavsdk_impl.time.elapsed_since_s(last_ping_time) >= SystemImpl::_ping_interval_s &&
             _mavsdk_impl.get_own_component_id() != MavsdkImpl::DEFAULT_COMPONENT_ID_AUTOPILOT) {
-            if (_connected) {
+            if (_connected && _autopilot != Autopilot::ArduPilot) {
                 _ping.run_once();
             }
             last_ping_time = _mavsdk_impl.time.steady_time();
@@ -491,6 +485,12 @@ bool SystemImpl::send_message(mavlink_message_t& message)
     return _mavsdk_impl.send_message(message);
 }
 
+bool SystemImpl::queue_message(
+    std::function<mavlink_message_t(MavlinkAddress mavlink_address, uint8_t channel)> fun)
+{
+    return _mavsdk_impl.default_server_component_impl().queue_message(fun);
+}
+
 void SystemImpl::send_autopilot_version_request()
 {
     auto prom = std::promise<MavlinkCommandSender::Result>();
@@ -577,18 +577,17 @@ void SystemImpl::set_connected()
                 _mavsdk_impl.start_sending_heartbeats();
             });
 
-            if (!_always_connected) {
-                register_timeout_handler(
-                    [this] { heartbeats_timed_out(); },
-                    HEARTBEAT_TIMEOUT_S,
-                    &_heartbeat_timeout_cookie);
-            }
+            register_timeout_handler(
+                [this] { heartbeats_timed_out(); },
+                HEARTBEAT_TIMEOUT_S,
+                &_heartbeat_timeout_cookie);
+
             enable_needed = true;
 
             _is_connected_callbacks.queue(
                 true, [this](const auto& func) { _mavsdk_impl.call_user_callback(func); });
 
-        } else if (_connected && !_always_connected) {
+        } else if (_connected) {
             refresh_timeout_handler(_heartbeat_timeout_cookie);
         }
         // If not yet connected there is nothing to do/
@@ -865,16 +864,17 @@ SystemImpl::make_command_ardupilot_mode(FlightMode flight_mode, uint8_t componen
 
     switch (_vehicle_type) {
         case MAV_TYPE::MAV_TYPE_SURFACE_BOAT:
-        case MAV_TYPE::MAV_TYPE_GROUND_ROVER:
-            if (flight_mode_to_ardupilot_rover_mode(flight_mode) == ardupilot::RoverMode::Unknown) {
+        case MAV_TYPE::MAV_TYPE_GROUND_ROVER: {
+            const auto new_mode = flight_mode_to_ardupilot_rover_mode(flight_mode);
+            if (new_mode == ardupilot::RoverMode::Unknown) {
                 LogErr() << "Cannot translate flight mode to ArduPilot Rover mode.";
                 MavlinkCommandSender::CommandLong empty_command{};
                 return std::make_pair<>(MavlinkCommandSender::Result::UnknownError, empty_command);
             } else {
-                command.params.maybe_param2 =
-                    static_cast<float>(flight_mode_to_ardupilot_rover_mode(flight_mode));
+                command.params.maybe_param2 = static_cast<float>(new_mode);
             }
             break;
+        }
         case MAV_TYPE::MAV_TYPE_FIXED_WING:
         case MAV_TYPE::MAV_TYPE_VTOL_TAILSITTER_DUOROTOR:
         case MAV_TYPE::MAV_TYPE_VTOL_TAILSITTER_QUADROTOR:
@@ -907,8 +907,7 @@ SystemImpl::make_command_ardupilot_mode(FlightMode flight_mode, uint8_t componen
                 MavlinkCommandSender::CommandLong empty_command{};
                 return std::make_pair<>(MavlinkCommandSender::Result::UnknownError, empty_command);
             } else {
-                command.params.maybe_param2 =
-                    static_cast<float>(flight_mode_to_ardupilot_copter_mode(flight_mode));
+                command.params.maybe_param2 = static_cast<float>(new_mode);
             }
             break;
         }
@@ -1345,10 +1344,11 @@ MavlinkParameterClient* SystemImpl::param_sender(uint8_t component_id, bool exte
 
     _mavlink_parameter_clients.push_back(
         {std::make_unique<MavlinkParameterClient>(
-             *this,
+             _mavsdk_impl.default_server_component_impl().sender(),
              _mavsdk_impl.mavlink_message_handler,
              _mavsdk_impl.timeout_handler,
              [this]() { return timeout_s(); },
+             get_system_id(),
              component_id,
              extended),
          component_id,

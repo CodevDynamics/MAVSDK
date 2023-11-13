@@ -1,14 +1,16 @@
 #pragma once
 
+#include "autopilot.h"
 #include "callback_list.h"
 #include "flight_mode.h"
 #include "mavlink_address.h"
 #include "mavlink_include.h"
 #include "mavlink_parameter_client.h"
 #include "mavlink_command_sender.h"
-#include "mavlink_ftp.h"
+#include "mavlink_command_receiver.h"
+#include "mavlink_ftp_client.h"
 #include "mavlink_message_handler.h"
-#include "mavlink_mission_transfer.h"
+#include "mavlink_mission_transfer_client.h"
 #include "mavlink_request_message_handler.h"
 #include "mavlink_statustext_handler.h"
 #include "request_message.h"
@@ -35,12 +37,12 @@ class PluginImplBase;
 
 // This class is the impl of System. This is to hide the private methods
 // and functionality from the public library API.
-class SystemImpl : public Sender {
+class SystemImpl {
 public:
     explicit SystemImpl(MavsdkImpl& parent);
-    ~SystemImpl() override;
+    ~SystemImpl();
 
-    void init(uint8_t system_id, uint8_t comp_id, bool connected);
+    void init(uint8_t system_id, uint8_t comp_id);
 
     void enable_timesync();
 
@@ -75,9 +77,11 @@ public:
         std::function<void(const MavlinkStatustextHandler::Statustext&)>, void* cookie);
     void unregister_statustext_handler(void* cookie);
 
-    bool send_message(mavlink_message_t& message) override;
+    bool send_message(mavlink_message_t& message);
+    bool queue_message(
+        std::function<mavlink_message_t(MavlinkAddress mavlink_address, uint8_t channel)> fun);
 
-    Autopilot autopilot() const override { return _autopilot; };
+    Autopilot autopilot() const { return _autopilot; };
 
     using CommandResultCallback = MavlinkCommandSender::CommandResultCallback;
 
@@ -119,13 +123,13 @@ public:
     bool has_camera(int camera_id = -1) const;
     bool has_gimbal() const;
 
-    uint8_t get_system_id() const override;
+    uint8_t get_system_id() const;
     std::vector<uint8_t> component_ids() const;
 
     void set_system_id(uint8_t system_id);
 
-    uint8_t get_own_system_id() const override;
-    uint8_t get_own_component_id() const override;
+    uint8_t get_own_system_id() const;
+    uint8_t get_own_component_id() const;
     uint8_t get_own_mav_type() const;
     MAV_TYPE get_vehicle_type() const;
 
@@ -281,9 +285,9 @@ public:
         const MavlinkCommandSender::CommandResultCallback& callback);
     void send_flight_information_request();
 
-    MavlinkMissionTransfer& mission_transfer() { return _mission_transfer; };
+    MavlinkMissionTransferClient& mission_transfer_client() { return _mission_transfer_client; };
 
-    MavlinkFtp& mavlink_ftp() { return _mavlink_ftp; };
+    MavlinkFtpClient& mavlink_ftp_client() { return _mavlink_ftp_client; };
 
     RequestMessage& request_message() { return _request_message; };
 
@@ -342,7 +346,7 @@ private:
     CallbackList<System::ComponentType> _component_discovered_callbacks{};
     CallbackList<System::ComponentType, uint8_t> _component_discovered_id_callbacks{};
 
-    MAVLinkAddress _target_address{};
+    MavlinkAddress _target_address{};
 
     AutopilotTime _autopilot_time{};
 
@@ -357,7 +361,6 @@ private:
 
     std::atomic<bool> _armed{false};
     std::atomic<bool> _hitl_enabled{false};
-    bool _always_connected{false};
 
     std::atomic<Autopilot> _autopilot{Autopilot::Unknown};
 
@@ -389,9 +392,9 @@ private:
     Timesync _timesync;
     Ping _ping;
 
-    MavlinkMissionTransfer _mission_transfer;
+    MavlinkMissionTransferClient _mission_transfer_client;
     RequestMessage _request_message;
-    MavlinkFtp _mavlink_ftp;
+    MavlinkFtpClient _mavlink_ftp_client;
 
     std::mutex _plugin_impls_mutex{};
     std::vector<PluginImplBase*> _plugin_impls{};
