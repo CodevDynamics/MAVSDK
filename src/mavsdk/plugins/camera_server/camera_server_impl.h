@@ -8,6 +8,46 @@ namespace mavsdk {
 
 class CameraServerImpl : public ServerPluginImplBase {
 public:
+    using VideoStatusCallback = std::function<void(uint8_t&,uint32_t&,float&)>;
+    using CameraSettingsCallback = std::function<void(uint8_t&,float&,float&)>;
+    using VideoHandle = Handle<int32_t,bool&>;
+    using VideoCallback = std::function<void(int32_t,bool&)>;
+    using ZoomFocusHandle = Handle<uint8_t,float>;
+    using ZoomFocusCallback = std::function<void(uint8_t,float)>;
+    using ModeHandle = Handle<uint8_t>;
+    using ModeCallback = std::function<void(uint8_t)>;
+    using ResetHandle = Handle<bool>;
+    using ResetCallback = std::function<void(bool)>;
+    using FormatHandle = Handle<uint8_t,bool,bool>;
+    using FormatCallback = std::function<void(uint8_t,bool,bool)>;
+    struct StorageInformation {
+        uint8_t storage_count;
+        uint8_t status;
+        uint8_t type;
+        uint8_t storage_usage;
+        float total_capacity;
+        float used_capacity;
+        float available_capacity;
+        float read_speed;
+        float write_speed;
+        std::string name;
+    };
+    CameraServer::Result set_storage_information(CameraServerImpl::StorageInformation information);
+    void register_video_status_callback(const CameraServerImpl::VideoStatusCallback& callback);
+    void register_camera_settings_callback(const CameraServerImpl::CameraSettingsCallback& callback);
+    CameraServerImpl::VideoHandle subscribe_video(const CameraServerImpl::VideoCallback& callback);
+    void unsubscribe_video(CameraServerImpl::VideoHandle handle);
+    CameraServerImpl::ZoomFocusHandle subscribe_zoom(const CameraServerImpl::ZoomFocusCallback& callback);
+    void unsubscribe_zoom(CameraServerImpl::ZoomFocusHandle handle);
+    CameraServerImpl::ZoomFocusHandle subscribe_focus(const CameraServerImpl::ZoomFocusCallback& callback);
+    void unsubscribe_focus(CameraServerImpl::ZoomFocusHandle handle);
+    CameraServerImpl::ModeHandle subscribe_mode(const CameraServerImpl::ModeCallback& callback);
+    void unsubscribe_mode(CameraServerImpl::ModeHandle handle);
+    CameraServerImpl::ResetHandle subscribe_reset(const CameraServerImpl::ResetCallback& callback);
+    void unsubscribe_reset(CameraServerImpl::ResetHandle handle);
+    CameraServerImpl::FormatHandle subscribe_format(const CameraServerImpl::FormatCallback& callback);
+    void unsubscribe_format(CameraServerImpl::FormatHandle handle);
+
     explicit CameraServerImpl(std::shared_ptr<ServerComponent> server_component);
     ~CameraServerImpl() override;
 
@@ -26,6 +66,17 @@ public:
         CameraServer::CaptureInfo capture_info);
 
 private:
+    bool _is_storage_information_set{};
+    CameraServerImpl::StorageInformation _storage_information{};
+    CameraServerImpl::VideoStatusCallback _video_status_callback{nullptr};
+    CameraServerImpl::CameraSettingsCallback _camera_settings_callback{nullptr};
+    CallbackList<int32_t,bool&> _video_callbacks{};
+    CallbackList<uint8_t,float> _focus_callbacks{};
+    CallbackList<uint8_t,float> _zoom_callbacks{};
+    CallbackList<uint8_t> _mode_callbacks{};
+    CallbackList<bool> _reset_callbacks{};
+    CallbackList<uint8_t,bool,bool> _format_callbacks{};
+
     enum StatusFlags {
         IN_PROGRESS = 1 << 0,
         INTERVAL_SET = 1 << 1,
