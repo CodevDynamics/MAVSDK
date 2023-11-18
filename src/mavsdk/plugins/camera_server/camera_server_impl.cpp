@@ -295,6 +295,18 @@ void CameraServerImpl::unsubscribe_format(CameraServerImpl::FormatHandle handle)
     _format_callbacks.unsubscribe(handle);
 }
 
+void CameraServerImpl::push_stream_info(const mavlink_video_stream_information_t& info)
+{
+    std::lock_guard<std::mutex> lock(_stream_info_mutex);
+    _stream_info.push_back(info);
+}
+
+void CameraServerImpl::clean_stream_info()
+{
+    std::lock_guard<std::mutex> lock(_stream_info_mutex);
+    _stream_info.clear();
+}
+
 CameraServer::TakePhotoHandle
 CameraServerImpl::subscribe_take_photo(const CameraServer::TakePhotoCallback& callback)
 {
@@ -316,7 +328,7 @@ CameraServer::Result CameraServerImpl::respond_take_photo(
         // If _image_capture_count == 0, we ignore since it means that this is
         // the first photo since the plugin was initialized.
         if (_image_capture_count != 0 && capture_info.index != _image_capture_count + 1) {
-            LogErr() << "unexpected image index, expecting " << +(_image_capture_count + 1)
+            LogWarn() << "unexpected image index, expecting " << +(_image_capture_count + 1)
                      << " but was " << +capture_info.index;
         }
 
@@ -464,6 +476,26 @@ std::optional<mavlink_command_ack_t> CameraServerImpl::process_camera_informatio
 
     if (!_take_photo_callbacks.empty()) {
         capability_flags |= CAMERA_CAP_FLAGS::CAMERA_CAP_FLAGS_CAPTURE_IMAGE;
+    }
+
+    if (!_video_callbacks.empty()) {
+        capability_flags |= CAMERA_CAP_FLAGS::CAMERA_CAP_FLAGS_CAPTURE_VIDEO;
+    }
+
+    if (!_mode_callbacks.empty()) {
+        capability_flags |= CAMERA_CAP_FLAGS::CAMERA_CAP_FLAGS_HAS_MODES;
+    }
+
+    if (!_zoom_callbacks.empty()) {
+        capability_flags |= CAMERA_CAP_FLAGS::CAMERA_CAP_FLAGS_HAS_BASIC_ZOOM;
+    }
+
+    if (!_focus_callbacks.empty()) {
+        capability_flags |= CAMERA_CAP_FLAGS::CAMERA_CAP_FLAGS_HAS_BASIC_FOCUS;
+    }
+
+    if (_stream_info.size()) {
+        capability_flags |= CAMERA_CAP_FLAGS::CAMERA_CAP_FLAGS_HAS_VIDEO_STREAM;
     }
 
     _server_component_impl->queue_message([&](MavlinkAddress mavlink_address, uint8_t channel) {
@@ -884,12 +916,34 @@ std::optional<mavlink_command_ack_t> CameraServerImpl::process_video_stream_info
 {
     auto stream_id = static_cast<uint8_t>(command.params.param1);
 
-    UNUSED(stream_id);
+    std::lock_guard<std::mutex> lock(_stream_info_mutex);
 
-    LogDebug() << "unsupported video stream information request";
+    if (_stream_info.size() == 0) {
+        LogDebug() << "no video info";
+        return _server_component_impl->make_command_ack_message(
+            command, MAV_RESULT::MAV_RESULT_UNSUPPORTED);
+    }
+
+    int id = stream_id - 1;
+    for(int i = 0; i < _stream_info.size(); i++) {
+        if(id < 0 || i == id) {
+            mavlink_video_stream_information_t info = _stream_info[i];
+            _server_component_impl->queue_message([&info](MavlinkAddress mavlink_address, uint8_t channel) {
+                mavlink_message_t message{};
+                mavlink_msg_video_stream_information_encode_chan(
+                    mavlink_address.system_id,
+                    mavlink_address.component_id,
+                    channel,
+                    &message,
+                    &info
+                );
+                return message;
+            });
+        }
+    }
 
     return _server_component_impl->make_command_ack_message(
-        command, MAV_RESULT::MAV_RESULT_UNSUPPORTED);
+        command, MAV_RESULT::MAV_RESULT_ACCEPTED);
 }
 
 std::optional<mavlink_command_ack_t> CameraServerImpl::process_video_stream_status_request(
@@ -897,12 +951,41 @@ std::optional<mavlink_command_ack_t> CameraServerImpl::process_video_stream_stat
 {
     auto stream_id = static_cast<uint8_t>(command.params.param1);
 
-    UNUSED(stream_id);
+    std::lock_guard<std::mutex> lock(_stream_info_mutex);
 
-    LogDebug() << "unsupported video stream status request";
+    if (_stream_info.size() == 0) {
+        LogDebug() << "no video info";
+        return _server_component_impl->make_command_ack_message(
+            command, MAV_RESULT::MAV_RESULT_UNSUPPORTED);
+    }
+
+    int id = stream_id - 1;
+    for(int i = 0; i < _stream_info.size(); i++) {
+        if(id < 0 || i == id) {
+            mavlink_video_stream_information_t info = _stream_info[i];
+            _server_component_impl->queue_message([&info](MavlinkAddress mavlink_address, uint8_t channel) {
+                mavlink_message_t message{};
+                mavlink_msg_video_stream_status_pack_chan(
+                    mavlink_address.system_id,
+                    mavlink_address.component_id,
+                    channel,
+                    &message,
+                    info.stream_id,
+                    info.flags,
+                    info.framerate,
+                    info.resolution_h,
+                    info.resolution_v,
+                    info.bitrate,
+                    info.rotation,
+                    info.hfov
+                );
+                return message;
+            });
+        }
+    }
 
     return _server_component_impl->make_command_ack_message(
-        command, MAV_RESULT::MAV_RESULT_UNSUPPORTED);
+        command, MAV_RESULT::MAV_RESULT_ACCEPTED);
 }
 
 } // namespace mavsdk

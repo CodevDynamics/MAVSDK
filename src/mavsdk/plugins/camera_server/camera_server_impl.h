@@ -48,6 +48,9 @@ public:
     CameraServerImpl::FormatHandle subscribe_format(const CameraServerImpl::FormatCallback& callback);
     void unsubscribe_format(CameraServerImpl::FormatHandle handle);
 
+    void push_stream_info(const mavlink_video_stream_information_t& info);
+    void clean_stream_info();
+
     explicit CameraServerImpl(std::shared_ptr<ServerComponent> server_component);
     ~CameraServerImpl() override;
 
@@ -76,6 +79,9 @@ private:
     CallbackList<uint8_t> _mode_callbacks{};
     CallbackList<bool> _reset_callbacks{};
     CallbackList<uint8_t,bool,bool> _format_callbacks{};
+
+    std::mutex _stream_info_mutex{};
+    std::vector<mavlink_video_stream_information_t> _stream_info;
 
     enum StatusFlags {
         IN_PROGRESS = 1 << 0,
