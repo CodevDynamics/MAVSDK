@@ -18,8 +18,8 @@ public:
     using ModeCallback = std::function<void(uint8_t)>;
     using ResetHandle = Handle<bool>;
     using ResetCallback = std::function<void(bool)>;
-    using FormatHandle = Handle<uint8_t,bool,bool>;
-    using FormatCallback = std::function<void(uint8_t,bool,bool)>;
+    using FormatHandle = Handle<uint8_t,bool&,bool>;
+    using FormatCallback = std::function<void(uint8_t,bool&,bool)>;
     struct StorageInformation {
         uint8_t storage_count;
         uint8_t status;
@@ -32,6 +32,7 @@ public:
         float write_speed;
         std::string name;
     };
+
     CameraServer::Result set_storage_information(CameraServerImpl::StorageInformation information);
     void register_video_status_callback(const CameraServerImpl::VideoStatusCallback& callback);
     void register_camera_settings_callback(const CameraServerImpl::CameraSettingsCallback& callback);
@@ -50,6 +51,8 @@ public:
 
     void push_stream_info(const mavlink_video_stream_information_t& info);
     void clean_stream_info();
+
+    void update_camera_capture_status_idle(float available_capacity, int32_t image_capture_count);
 
     explicit CameraServerImpl(std::shared_ptr<ServerComponent> server_component);
     ~CameraServerImpl() override;
@@ -78,7 +81,7 @@ private:
     CallbackList<uint8_t,float> _zoom_callbacks{};
     CallbackList<uint8_t> _mode_callbacks{};
     CallbackList<bool> _reset_callbacks{};
-    CallbackList<uint8_t,bool,bool> _format_callbacks{};
+    CallbackList<uint8_t,bool&,bool> _format_callbacks{};
 
     std::mutex _stream_info_mutex{};
     std::vector<mavlink_video_stream_information_t> _stream_info;

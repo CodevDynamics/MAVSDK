@@ -307,6 +307,27 @@ void CameraServerImpl::clean_stream_info()
     _stream_info.clear();
 }
 
+void CameraServerImpl::update_camera_capture_status_idle(float available_capacity, int32_t image_capture_count)
+{
+    _image_capture_count = image_capture_count;
+    _server_component_impl->queue_message([&](MavlinkAddress mavlink_address, uint8_t channel) {
+        mavlink_message_t message{};
+        mavlink_msg_camera_capture_status_pack_chan(
+            mavlink_address.system_id,
+            mavlink_address.component_id,
+            channel,
+            &message,
+            static_cast<uint32_t>(_server_component_impl->get_time().elapsed_s() * 1e3),
+            0,
+            0,
+            0,
+            0,
+            available_capacity,
+            _image_capture_count);
+        return message;
+    });
+}
+
 CameraServer::TakePhotoHandle
 CameraServerImpl::subscribe_take_photo(const CameraServer::TakePhotoCallback& callback)
 {
@@ -632,10 +653,66 @@ CameraServerImpl::process_storage_format(const MavlinkCommandReceiver::CommandLo
             command, MAV_RESULT::MAV_RESULT_UNSUPPORTED);
     }
 
+    if(format) {
+        _storage_information.storage_count = 1;
+        _storage_information.status = STORAGE_STATUS_UNFORMATTED;
+        _storage_information.type = STORAGE_TYPE_SD;
+        _storage_information.storage_usage = STORAGE_USAGE_FLAG_SET;
+        _storage_information.total_capacity = 0;
+        _storage_information.used_capacity = 0;
+        _storage_information.available_capacity = 0;
+        _storage_information.read_speed = 0;
+        _storage_information.write_speed = 0;
+        _storage_information.name = "None";
+        _server_component_impl->queue_message([&](MavlinkAddress mavlink_address, uint8_t channel) {
+            mavlink_message_t message{};
+            mavlink_msg_storage_information_pack_chan(
+                mavlink_address.system_id,
+                mavlink_address.component_id,
+                channel,
+                &message,
+                static_cast<uint32_t>(_server_component_impl->get_time().elapsed_s() * 1e3),
+                0,
+                _storage_information.storage_count,
+                _storage_information.status,
+                _storage_information.total_capacity,
+                _storage_information.used_capacity,
+                _storage_information.available_capacity,
+                _storage_information.read_speed,
+                _storage_information.write_speed,
+                _storage_information.type,
+                _storage_information.name.data(),
+                _storage_information.storage_usage);
+
+            return message;
+        });
+        reset_image_log = 1;
+    }
+
+    if(reset_image_log) {
+        _image_capture_count = 0;
+        _server_component_impl->queue_message([&](MavlinkAddress mavlink_address, uint8_t channel) {
+            mavlink_message_t message{};
+            mavlink_msg_camera_capture_status_pack_chan(
+                mavlink_address.system_id,
+                mavlink_address.component_id,
+                channel,
+                &message,
+                static_cast<uint32_t>(_server_component_impl->get_time().elapsed_s() * 1e3),
+                0,
+                0,
+                0,
+                0,
+                0,
+                _image_capture_count);
+            return message;
+        });
+    }
+
     _format_callbacks(storage_id, format, reset_image_log);
 
     return _server_component_impl->make_command_ack_message(
-        command, MAV_RESULT::MAV_RESULT_ACCEPTED);
+            command, format ? MAV_RESULT::MAV_RESULT_ACCEPTED : MAV_RESULT::MAV_RESULT_TEMPORARILY_REJECTED);
 }
 
 std::optional<mavlink_command_ack_t> CameraServerImpl::process_camera_capture_status_request(
@@ -792,6 +869,11 @@ CameraServerImpl::process_image_start_capture(const MavlinkCommandReceiver::Comm
             command, MAV_RESULT::MAV_RESULT_UNSUPPORTED);
     }
 
+    if(_storage_information.available_capacity < 20) {
+        return _server_component_impl->make_command_ack_message(
+                command, MAV_RESULT::MAV_RESULT_TEMPORARILY_REJECTED);
+    }
+
     // single image capture
     if (total_images == 1) {
         if (seq_number <= _image_capture_count) {
@@ -810,8 +892,10 @@ CameraServerImpl::process_image_start_capture(const MavlinkCommandReceiver::Comm
 
         _take_photo_callbacks(seq_number);
 
+        return std::nullopt;
+    } else if(_storage_information.available_capacity < total_images * 10) {
         return _server_component_impl->make_command_ack_message(
-            command, MAV_RESULT::MAV_RESULT_ACCEPTED);
+                command, MAV_RESULT::MAV_RESULT_TEMPORARILY_REJECTED);
     }
 
     start_image_capture_interval(interval_s, total_images, seq_number);
@@ -858,6 +942,11 @@ CameraServerImpl::process_video_start_capture(const MavlinkCommandReceiver::Comm
         LogDebug() << "video start capture requested with no video subscriber";
         return _server_component_impl->make_command_ack_message(
             command, MAV_RESULT::MAV_RESULT_UNSUPPORTED);
+    }
+
+    if(_storage_information.available_capacity < 100) {
+        return _server_component_impl->make_command_ack_message(
+                command, MAV_RESULT::MAV_RESULT_TEMPORARILY_REJECTED);
     }
 
     bool ok = true;
