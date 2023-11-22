@@ -1,5 +1,6 @@
 #include "camera_server_impl.h"
 #include "callback_list.tpp"
+#include <future>
 
 namespace mavsdk {
 
@@ -653,6 +654,12 @@ CameraServerImpl::process_storage_format(const MavlinkCommandReceiver::CommandLo
             command, MAV_RESULT::MAV_RESULT_UNSUPPORTED);
     }
 
+    if(!_is_storage_information_set || _storage_information.status == STORAGE_STATUS_EMPTY) {
+        LogDebug() << "format requested with no storage";
+        return _server_component_impl->make_command_ack_message(
+            command, MAV_RESULT::MAV_RESULT_TEMPORARILY_REJECTED);
+    }
+
     if(format) {
         _storage_information.storage_count = 1;
         _storage_information.status = STORAGE_STATUS_UNFORMATTED;
@@ -709,10 +716,24 @@ CameraServerImpl::process_storage_format(const MavlinkCommandReceiver::CommandLo
         });
     }
 
-    _format_callbacks(storage_id, format, reset_image_log);
+    _server_component_impl->call_user_callback(
+        [command, storage_id, format, reset_image_log, this]() {
+            bool format_result = format;
+            std::future<void> fut = std::async(std::launch::async, [storage_id, &format_result, reset_image_log, this]() {
+                _format_callbacks(storage_id, format_result, reset_image_log);
+            });
+            do {
+                auto command_ack = _server_component_impl->make_command_ack_message(
+                    command, MAV_RESULT::MAV_RESULT_IN_PROGRESS);
+                _server_component_impl->send_command_ack(command_ack);
+            } while(fut.wait_for(std::chrono::milliseconds(250)) == std::future_status::timeout);
 
-    return _server_component_impl->make_command_ack_message(
-            command, format ? MAV_RESULT::MAV_RESULT_ACCEPTED : MAV_RESULT::MAV_RESULT_TEMPORARILY_REJECTED);
+            auto command_ack = _server_component_impl->make_command_ack_message(
+                    command, format ? MAV_RESULT::MAV_RESULT_ACCEPTED : MAV_RESULT::MAV_RESULT_FAILED);
+            _server_component_impl->send_command_ack(command_ack);
+        });
+
+    return std::nullopt;
 }
 
 std::optional<mavlink_command_ack_t> CameraServerImpl::process_camera_capture_status_request(
@@ -854,7 +875,12 @@ CameraServerImpl::process_image_start_capture(const MavlinkCommandReceiver::Comm
 {
     auto interval_s = command.params.param2;
     auto total_images = static_cast<int32_t>(command.params.param3);
-    auto seq_number = static_cast<int32_t>(command.params.param4);
+    int seq_number;
+    if(isnan(command.params.param4)) {
+        seq_number = _image_capture_count + 1;
+    } else {
+        seq_number = static_cast<int32_t>(command.params.param4);
+    }
 
     LogDebug() << "received image start capture request - interval: " << +interval_s
                << " total: " << +total_images << " index: " << +seq_number;
@@ -883,14 +909,19 @@ CameraServerImpl::process_image_start_capture(const MavlinkCommandReceiver::Comm
                 command, MAV_RESULT::MAV_RESULT_ACCEPTED);
         }
 
-        // MAV_RESULT_ACCEPTED must be sent before CAMERA_IMAGE_CAPTURED
-        auto command_ack = _server_component_impl->make_command_ack_message(
-            command, MAV_RESULT::MAV_RESULT_IN_PROGRESS);
-        _server_component_impl->send_command_ack(command_ack);
-
         _last_take_photo_command = command;
 
-        _take_photo_callbacks(seq_number);
+        _server_component_impl->call_user_callback(
+            [command, seq_number, this]() {
+                std::future<void> fut = std::async(std::launch::async, [seq_number, this]() {
+                    _take_photo_callbacks(seq_number);
+                });
+                do {
+                    auto command_ack = _server_component_impl->make_command_ack_message(
+                        command, MAV_RESULT::MAV_RESULT_IN_PROGRESS);
+                    _server_component_impl->send_command_ack(command_ack);
+                } while(fut.wait_for(std::chrono::milliseconds(250)) == std::future_status::timeout);
+            });
 
         return std::nullopt;
     } else if(_storage_information.available_capacity < total_images * 10) {
@@ -949,11 +980,24 @@ CameraServerImpl::process_video_start_capture(const MavlinkCommandReceiver::Comm
                 command, MAV_RESULT::MAV_RESULT_TEMPORARILY_REJECTED);
     }
 
-    bool ok = true;
-    _video_callbacks(stream_id, ok);
+    _server_component_impl->call_user_callback(
+        [command, stream_id, this]() {
+            bool ok = true;
+            std::future<void> fut = std::async(std::launch::async, [stream_id, &ok, this]() {
+                _video_callbacks(stream_id, ok);
+            });
+            do {
+                auto command_ack = _server_component_impl->make_command_ack_message(
+                    command, MAV_RESULT::MAV_RESULT_IN_PROGRESS);
+                _server_component_impl->send_command_ack(command_ack);
+            } while(fut.wait_for(std::chrono::milliseconds(250)) == std::future_status::timeout);
 
-    return _server_component_impl->make_command_ack_message(
-        command, ok ? MAV_RESULT::MAV_RESULT_ACCEPTED : MAV_RESULT::MAV_RESULT_TEMPORARILY_REJECTED);
+            auto command_ack = _server_component_impl->make_command_ack_message(
+                    command, ok ? MAV_RESULT::MAV_RESULT_ACCEPTED : MAV_RESULT::MAV_RESULT_FAILED);
+            _server_component_impl->send_command_ack(command_ack);
+        });
+
+    return std::nullopt;
 }
 
 std::optional<mavlink_command_ack_t>
@@ -967,11 +1011,24 @@ CameraServerImpl::process_video_stop_capture(const MavlinkCommandReceiver::Comma
             command, MAV_RESULT::MAV_RESULT_UNSUPPORTED);
     }
 
-    bool ok = false;
-    _video_callbacks(stream_id, ok);
+    _server_component_impl->call_user_callback(
+        [command, stream_id, this]() {
+            bool ok = false;
+            std::future<void> fut = std::async(std::launch::async, [stream_id, &ok, this]() {
+                _video_callbacks(stream_id, ok);
+            });
+            do {
+                auto command_ack = _server_component_impl->make_command_ack_message(
+                    command, MAV_RESULT::MAV_RESULT_IN_PROGRESS);
+                _server_component_impl->send_command_ack(command_ack);
+            } while(fut.wait_for(std::chrono::milliseconds(250)) == std::future_status::timeout);
 
-    return _server_component_impl->make_command_ack_message(
-        command, ok ? MAV_RESULT::MAV_RESULT_ACCEPTED : MAV_RESULT::MAV_RESULT_TEMPORARILY_REJECTED);
+            auto command_ack = _server_component_impl->make_command_ack_message(
+                    command, ok ? MAV_RESULT::MAV_RESULT_ACCEPTED : MAV_RESULT::MAV_RESULT_FAILED);
+            _server_component_impl->send_command_ack(command_ack);
+        });
+
+    return std::nullopt;
 }
 
 std::optional<mavlink_command_ack_t>
