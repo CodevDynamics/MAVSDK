@@ -356,6 +356,10 @@ bool ParamValue::set_from_xml(const std::string& type_str, const std::string& va
         _value = static_cast<float>(std::stof(value_str));
     } else if (type_str == "double") {
         _value = static_cast<double>(std::stod(value_str));
+    } else if (type_str == "string") {
+        _value = value_str;
+    } else if (type_str == "custom") {
+        _value = value_str;
     } else {
         LogErr() << "Unknown type: " << type_str;
         return false;
@@ -446,6 +450,10 @@ bool ParamValue::set_empty_type_from_xml(const std::string& type_str)
         _value = 0.0f;
     } else if (type_str == "double") {
         _value = 0.0;
+    } else if(type_str == "string") {
+        _value = "";
+    } else if(type_str == "custom") {
+        _value = "";
     } else {
         LogErr() << "Unknown type: " << type_str;
         return false;
@@ -535,6 +543,8 @@ bool ParamValue::set_as_same_type(const std::string& value_str)
         _value = float(std::stof(value_str));
     } else if (std::get_if<double>(&_value)) {
         _value = double(std::stod(value_str));
+    } else if (std::get_if<std::string>(&_value)) {
+        _value = value_str;
     } else {
         LogErr() << "Unknown type";
         return false;
@@ -739,6 +749,8 @@ bool ParamValue::operator==(const std::string& value_str) const
         return std::get<float>(_value) == std::stof(value_str);
     } else if (std::get_if<double>(&_value)) {
         return std::get<double>(_value) == std::stod(value_str);
+    } else if (std::get_if<std::string>(&_value)) {
+        return std::get<std::string>(_value) == value_str;
     } else {
         // This also covers custom_type_t
         return false;

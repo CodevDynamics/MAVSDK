@@ -117,19 +117,9 @@ bool CameraDefinition::parse_xml()
         }
 
         auto type_str = std::string(type_str_res);
-        if (type_str == "string") {
-            LogDebug() << "Ignoring string params: " << param_name;
-            continue;
-        }
-
-        if (type_str == "custom") {
-            LogDebug() << "Ignoring custom params: " << param_name;
-            continue;
-        }
-
         if (!new_parameter->type.set_empty_type_from_xml(type_str)) {
-            LogErr() << "Unknown type attribute: " << type_str;
-            return false;
+            LogWarn() << "Unknown type attribute: " << type_str;
+            continue;
         }
 
         // By default control is on.
@@ -239,7 +229,7 @@ bool CameraDefinition::parse_xml()
             } else {
                 return false;
             }
-        } else {
+        } else if(type_str != "custom" && type_str != "string") {
             auto maybe_range_options = parse_range_options(e_parameter, param_name, type_map);
             if (!std::get<0>(maybe_range_options)) {
                 LogWarn() << "Not found: " << param_name;

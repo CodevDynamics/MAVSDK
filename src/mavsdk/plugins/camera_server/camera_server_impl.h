@@ -20,6 +20,8 @@ public:
     using ResetCallback = std::function<void(bool)>;
     using FormatHandle = Handle<uint8_t,bool&,bool>;
     using FormatCallback = std::function<void(uint8_t,bool&,bool)>;
+    using ParamChangedHandle = Handle<std::string>;
+    using ParamChangedCallback = std::function<void(std::string)>;
     struct StorageInformation {
         uint8_t storage_count;
         uint8_t status;
@@ -48,9 +50,13 @@ public:
     void unsubscribe_reset(CameraServerImpl::ResetHandle handle);
     CameraServerImpl::FormatHandle subscribe_format(const CameraServerImpl::FormatCallback& callback);
     void unsubscribe_format(CameraServerImpl::FormatHandle handle);
+    CameraServerImpl::ParamChangedHandle subscribe_param_changed(const CameraServerImpl::ParamChangedCallback& callback);
+    void unsubscribe_param_changed(CameraServerImpl::ParamChangedHandle handle);
 
     void push_stream_info(const mavlink_video_stream_information_t& info);
     void clean_stream_info();
+    void provide_server_params(std::unordered_map<std::string, ParamValue> params);
+    bool retrieve_server_param(const std::string& name, ParamValue& value);
 
     void update_camera_capture_status_idle(float available_capacity, int32_t image_capture_count);
 
@@ -82,6 +88,7 @@ private:
     CallbackList<uint8_t> _mode_callbacks{};
     CallbackList<bool> _reset_callbacks{};
     CallbackList<uint8_t,bool&,bool> _format_callbacks{};
+    CallbackList<std::string> _param_changed_callbacks{};
 
     std::mutex _stream_info_mutex{};
     std::vector<mavlink_video_stream_information_t> _stream_info;
@@ -155,6 +162,8 @@ private:
     process_video_stream_information_request(const MavlinkCommandReceiver::CommandLong& command);
     std::optional<mavlink_command_ack_t>
     process_video_stream_status_request(const MavlinkCommandReceiver::CommandLong& command);
+    void
+    process_param_changed(std::string name);
 };
 
 } // namespace mavsdk

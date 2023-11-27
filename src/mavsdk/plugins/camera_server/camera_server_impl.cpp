@@ -133,6 +133,9 @@ void CameraServerImpl::init()
             return process_video_stream_status_request(command);
         },
         this);
+    _server_component_impl->mavlink_parameter_server().subscribe_param_changed(
+        std::bind(&CameraServerImpl::process_param_changed, this, std::placeholders::_1),
+        this);
 }
 
 void CameraServerImpl::deinit()
@@ -296,6 +299,16 @@ void CameraServerImpl::unsubscribe_format(CameraServerImpl::FormatHandle handle)
     _format_callbacks.unsubscribe(handle);
 }
 
+CameraServerImpl::ParamChangedHandle CameraServerImpl::subscribe_param_changed(const CameraServerImpl::ParamChangedCallback& callback)
+{
+    return _param_changed_callbacks.subscribe(callback);
+}
+
+void CameraServerImpl::unsubscribe_param_changed(CameraServerImpl::ParamChangedHandle handle)
+{
+    _param_changed_callbacks.unsubscribe(handle);
+}
+
 void CameraServerImpl::push_stream_info(const mavlink_video_stream_information_t& info)
 {
     std::lock_guard<std::mutex> lock(_stream_info_mutex);
@@ -306,6 +319,23 @@ void CameraServerImpl::clean_stream_info()
 {
     std::lock_guard<std::mutex> lock(_stream_info_mutex);
     _stream_info.clear();
+}
+
+void CameraServerImpl::provide_server_params(std::unordered_map<std::string, ParamValue> params)
+{
+    for (auto const& param : params) {
+        _server_component_impl->mavlink_parameter_server().provide_server_param(param.first, param.second);
+    }
+}
+
+bool CameraServerImpl::retrieve_server_param(const std::string& name, ParamValue& value)
+{
+    std::pair<MavlinkParameterServer::Result, ParamValue> result = _server_component_impl->mavlink_parameter_server().retrieve_server_param(name);
+    if(result.first == MavlinkParameterServer::Result::Success) {
+        value = result.second;
+    } else {
+        return false;
+    }
 }
 
 void CameraServerImpl::update_camera_capture_status_idle(float available_capacity, int32_t image_capture_count)
@@ -1132,6 +1162,19 @@ std::optional<mavlink_command_ack_t> CameraServerImpl::process_video_stream_stat
 
     return _server_component_impl->make_command_ack_message(
         command, MAV_RESULT::MAV_RESULT_ACCEPTED);
+}
+
+void CameraServerImpl::process_param_changed(std::string name)
+{
+    if (_param_changed_callbacks.empty()) {
+        LogDebug() << "param changed with no param changed subscriber";
+        return;
+    }
+
+    _server_component_impl->call_user_callback(
+        [name, this]() {
+            _param_changed_callbacks(name);
+        });
 }
 
 } // namespace mavsdk
