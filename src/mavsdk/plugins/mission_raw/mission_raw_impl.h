@@ -85,6 +85,9 @@ public:
 
     void reset_mission_progress(int total = -1);
 
+    static std::vector<MavlinkMissionTransferClient::ItemInt>
+        convert_to_int_items(const std::vector<MissionRaw::MissionItem>& mission_raw);
+
 private:
     void process_mission_ack(const mavlink_message_t& message);
     void process_mission_current(const mavlink_message_t& message);
@@ -96,10 +99,7 @@ private:
         MissionRaw::ResultCallback callback, MavlinkCommandSender::Result result);
     static MissionRaw::Result command_result_to_mission_result(MavlinkCommandSender::Result result);
 
-    std::vector<MavlinkMissionTransferClient::ItemInt>
-    convert_to_int_items(const std::vector<MissionRaw::MissionItem>& mission_raw);
-
-    MavlinkMissionTransferClient::ItemInt
+    static MavlinkMissionTransferClient::ItemInt
     convert_mission_raw(const MissionRaw::MissionItem transfer_mission_raw);
 
     static MissionRaw::Result convert_result(MavlinkMissionTransferClient::Result result);

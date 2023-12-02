@@ -70,6 +70,10 @@ public:
     subscribe_mission_progress(const Mission::MissionProgressCallback& callback);
     void unsubscribe_mission_progress(Mission::MissionProgressHandle handle);
 
+    static std::pair<Mission::Result, Mission::MissionPlan> convert_to_result_and_mission_items(
+        MavlinkMissionTransferClient::Result result,
+        const std::vector<MavlinkMissionTransferClient::ItemInt>& int_items);
+
     // Non-copyable
     MissionImpl(const MissionImpl&) = delete;
     const MissionImpl& operator=(const MissionImpl&) = delete;
@@ -100,23 +104,20 @@ private:
         Mission::ResultCallback callback, MavlinkCommandSender::Result result);
     static Mission::Result command_result_to_mission_result(MavlinkCommandSender::Result result);
 
-    // FIXME: make static
-    std::pair<Mission::Result, Mission::MissionPlan> convert_to_result_and_mission_items(
-        MavlinkMissionTransferClient::Result result,
-        const std::vector<MavlinkMissionTransferClient::ItemInt>& int_items);
-
     static Mission::Result convert_result(MavlinkMissionTransferClient::Result result);
 
     void add_gimbal_items_v1(
         std::vector<MavlinkMissionTransferClient::ItemInt>& int_items,
         unsigned item_i,
         float pitch_deg,
-        float yaw_deg);
+        float yaw_deg,
+        Mission::MissionItem::GimbalYawMode yaw_mode = Mission::MissionItem::GimbalYawMode::None);
     void add_gimbal_items_v2(
         std::vector<MavlinkMissionTransferClient::ItemInt>& int_items,
         unsigned item_i,
         float pitch_deg,
-        float yaw_deg);
+        float yaw_deg,
+        Mission::MissionItem::GimbalYawMode yaw_mode = Mission::MissionItem::GimbalYawMode::None);
 
     void acquire_gimbal_control_v2(
         std::vector<MavlinkMissionTransferClient::ItemInt>& int_items, unsigned item_i);
@@ -140,10 +141,7 @@ private:
     void* _timeout_cookie{nullptr};
 
     bool _enable_return_to_launch_after_mission{false};
-
-    // FIXME: This is hardcoded for now because it is urgently needed for 3DR with Yuneec H520.
-    //        Ultimate it needs a setter.
-    bool _enable_absolute_gimbal_yaw_angle{true};
+    bool _have_return_to_launch_after_mission{false};
 
     void* _gimbal_protocol_cookie{nullptr};
     enum class GimbalProtocol { Unknown, V1, V2 };

@@ -379,12 +379,17 @@ MissionImpl::convert_to_int_items(const std::vector<MissionItem>& mission_items)
     std::vector<MavlinkMissionTransferClient::ItemInt> int_items;
 
     bool last_position_valid = false; // This flag is to protect us from using an invalid x/y.
+    _have_return_to_launch_after_mission = false;
 
     unsigned item_i = 0;
     _mission_data.mavlink_mission_item_to_mission_item_indices.clear();
     _mission_data.gimbal_v2_in_control = false;
 
     for (const auto& item : mission_items) {
+        if(item.vehicle_action == VehicleAction::ReturnToLaunch) {
+            _have_return_to_launch_after_mission = true;
+        }
+
         if (item.vehicle_action == VehicleAction::Takeoff) {
             // There is a vehicle action that we need to send.
 
@@ -478,7 +483,7 @@ MissionImpl::convert_to_int_items(const std::vector<MissionItem>& mission_items)
             switch (temp_gimbal_protocol) {
                 case GimbalProtocol::V1:
                     add_gimbal_items_v1(
-                        int_items, item_i, item.gimbal_pitch_deg, item.gimbal_yaw_deg);
+                        int_items, item_i, item.gimbal_pitch_deg, item.gimbal_yaw_deg, item.gimbal_yaw_mode);
                     break;
 
                 case GimbalProtocol::V2:
@@ -487,13 +492,37 @@ MissionImpl::convert_to_int_items(const std::vector<MissionItem>& mission_items)
                         _mission_data.gimbal_v2_in_control = true;
                     }
                     add_gimbal_items_v2(
-                        int_items, item_i, item.gimbal_pitch_deg, item.gimbal_yaw_deg);
+                        int_items, item_i, item.gimbal_pitch_deg, item.gimbal_yaw_deg, item.gimbal_yaw_mode);
                     break;
                 case GimbalProtocol::Unknown:
                     // This should not happen because we wait until we know the protocol version.
                     LogErr() << "Unknown gimbal protocol, skipping gimbal commands.";
                     break;
             }
+        }
+
+        if (std::isfinite(item.camera_zoom)) {
+            // Current is the 0th waypoint
+            uint8_t current = ((int_items.size() == 0) ? 1 : 0);
+            uint8_t autocontinue = 1;
+
+            MavlinkMissionTransferClient::ItemInt next_item{
+                static_cast<uint16_t>(int_items.size()),
+                MAV_FRAME_MISSION,
+                MAV_CMD_SET_CAMERA_ZOOM,
+                current,
+                autocontinue,
+                ZOOM_TYPE_RANGE, // Zoom type
+                item.camera_zoom, // Zoom value
+                NAN,
+                NAN,
+                0,
+                0,
+                NAN,
+                MAV_MISSION_TYPE_MISSION};
+
+            _mission_data.mavlink_mission_item_to_mission_item_indices.push_back(item_i);
+            int_items.push_back(next_item);
         }
 
         // A loiter time of NAN is ignored but also a loiter time of 0 doesn't
@@ -687,7 +716,7 @@ MissionImpl::convert_to_int_items(const std::vector<MissionItem>& mission_items)
         _mission_data.gimbal_v2_in_control = false;
     }
 
-    if (_enable_return_to_launch_after_mission) {
+    if (_enable_return_to_launch_after_mission || _have_return_to_launch_after_mission) {
         MavlinkMissionTransferClient::ItemInt next_item{
             static_cast<uint16_t>(int_items.size()),
             MAV_FRAME_MISSION,
@@ -720,12 +749,7 @@ std::pair<Mission::Result, Mission::MissionPlan> MissionImpl::convert_to_result_
         return result_pair;
     }
 
-    _mission_data.mavlink_mission_item_to_mission_item_indices.clear();
-
-    Mission::DownloadMissionCallback callback;
     {
-        _enable_return_to_launch_after_mission = false;
-
         MissionItem new_mission_item{};
         bool have_set_position = false;
 
@@ -734,7 +758,8 @@ std::pair<Mission::Result, Mission::MissionPlan> MissionImpl::convert_to_result_
 
             if (int_item.command == MAV_CMD_NAV_WAYPOINT ||
                 int_item.command == MAV_CMD_NAV_TAKEOFF) {
-                if (int_item.frame != MAV_FRAME_GLOBAL_RELATIVE_ALT_INT) {
+                if (int_item.frame != MAV_FRAME_GLOBAL_RELATIVE_ALT_INT &&
+                    int_item.frame != MAV_FRAME_GLOBAL_RELATIVE_ALT) {
                     LogErr() << "Waypoint frame not supported unsupported";
                     result_pair.first = Mission::Result::Unsupported;
                     break;
@@ -795,13 +820,20 @@ std::pair<Mission::Result, Mission::MissionPlan> MissionImpl::convert_to_result_
                     break;
                 }
 
-                // FIXME: ultimately param4 doesn't count anymore and
-                //        param7 holds the truth.
-                if (int(int_item.param4) == 1 || int(int_item.z) == 2) {
-                    _enable_absolute_gimbal_yaw_angle = true;
-                } else {
-                    _enable_absolute_gimbal_yaw_angle = false;
+                if (int(int_item.z) == 2) {
+                    new_mission_item.gimbal_yaw_mode = Mission::MissionItem::GimbalYawMode::Global;
+                } else if(int(int_item.z) == 0) {
+                    new_mission_item.gimbal_yaw_mode = Mission::MissionItem::GimbalYawMode::Body;
                 }
+
+            } else if (int_item.command == MAV_CMD_SET_CAMERA_ZOOM) {
+                if (int(int_item.param1) != ZOOM_TYPE_RANGE) {
+                    LogErr() << "Camera zoom type unsupported";
+                    result_pair.first = Mission::Result::Unsupported;
+                    break;
+                }
+
+                new_mission_item.camera_zoom = int_item.param2;
 
             } else if (int_item.command == MAV_CMD_IMAGE_START_CAPTURE) {
                 if (int_item.param2 > 0 && int(int_item.param3) == 0) {
@@ -876,16 +908,12 @@ std::pair<Mission::Result, Mission::MissionPlan> MissionImpl::convert_to_result_
                 }
 
             } else if (int_item.command == MAV_CMD_NAV_RETURN_TO_LAUNCH) {
-                _enable_return_to_launch_after_mission = true;
-
+                new_mission_item.vehicle_action = VehicleAction::ReturnToLaunch;
             } else {
                 LogErr() << "UNSUPPORTED mission item command (" << int_item.command << ")";
                 result_pair.first = Mission::Result::Unsupported;
                 break;
             }
-
-            _mission_data.mavlink_mission_item_to_mission_item_indices.push_back(
-                result_pair.second.mission_items.size());
         }
 
         // Don't forget to add last mission item.
@@ -1102,7 +1130,7 @@ std::pair<Mission::Result, bool> MissionImpl::is_mission_finished_locked() const
     // "reached" here.
     // It seems that we never receive a reached when RTL is initiated after
     // a mission, and we need to account for that.
-    const unsigned rtl_correction = _enable_return_to_launch_after_mission ? 2 : 1;
+    const unsigned rtl_correction = (_enable_return_to_launch_after_mission || _have_return_to_launch_after_mission) ? 2 : 1;
 
     return std::make_pair<Mission::Result, bool>(
         Mission::Result::Success,
@@ -1214,15 +1242,20 @@ void MissionImpl::add_gimbal_items_v1(
     std::vector<MavlinkMissionTransferClient::ItemInt>& int_items,
     unsigned item_i,
     float pitch_deg,
-    float yaw_deg)
+    float yaw_deg,
+    Mission::MissionItem::GimbalYawMode yaw_mode)
 {
-    if (_enable_absolute_gimbal_yaw_angle) {
+    if (yaw_mode != Mission::MissionItem::GimbalYawMode::None) {
         // We need to configure the gimbal to use an absolute angle.
 
         // Current is the 0th waypoint
         uint8_t current = ((int_items.size() == 0) ? 1 : 0);
 
         uint8_t autocontinue = 1;
+        float mode = 0.0f;
+        if(yaw_mode == Mission::MissionItem::GimbalYawMode::Global) {
+            mode = 2.0f;
+        }
 
         MavlinkMissionTransferClient::ItemInt next_item{
             static_cast<uint16_t>(int_items.size()),
@@ -1231,13 +1264,12 @@ void MissionImpl::add_gimbal_items_v1(
             current,
             autocontinue,
             MAV_MOUNT_MODE_MAVLINK_TARGETING,
-            0.0f, // stabilize roll
-            0.0f, // stabilize pitch
-            1.0f, // stabilize yaw, FIXME: for now we use this for an absolute yaw angle,
-                  // because it works.
+            1.0f, // stabilize roll
+            1.0f, // stabilize pitch
+            1.0f, // stabilize yaw
             0,
             0,
-            2.0f, // eventually this is the correct flag to set absolute yaw angle.
+            mode, // eventually this is the correct flag to set absolute yaw angle.
             MAV_MISSION_TYPE_MISSION};
 
         _mission_data.mavlink_mission_item_to_mission_item_indices.push_back(item_i);
@@ -1274,7 +1306,8 @@ void MissionImpl::add_gimbal_items_v2(
     std::vector<MavlinkMissionTransferClient::ItemInt>& int_items,
     unsigned item_i,
     float pitch_deg,
-    float yaw_deg)
+    float yaw_deg,
+    Mission::MissionItem::GimbalYawMode yaw_mode)
 {
     uint8_t current = ((int_items.size() == 0) ? 1 : 0);
 
@@ -1282,6 +1315,9 @@ void MissionImpl::add_gimbal_items_v2(
 
     // We don't set YAW_LOCK because we probably just want to face forward.
     uint32_t flags = GIMBAL_MANAGER_FLAGS_ROLL_LOCK | GIMBAL_MANAGER_FLAGS_PITCH_LOCK;
+    if(yaw_mode == Mission::MissionItem::GimbalYawMode::Global) {
+        flags |= GIMBAL_MANAGER_FLAGS_YAW_LOCK;
+    }
 
     // Pitch should be between -180 and 180 degrees
     pitch_deg = fmod(pitch_deg, 360.f);

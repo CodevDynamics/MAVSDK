@@ -176,6 +176,23 @@ operator<<(std::ostream& str, Mission::MissionItem::VehicleAction const& vehicle
             return str << "Transition To Fw";
         case Mission::MissionItem::VehicleAction::TransitionToMc:
             return str << "Transition To Mc";
+        case Mission::MissionItem::VehicleAction::ReturnToLaunch:
+            return str << "Return To Launch";
+        default:
+            return str << "Unknown";
+    }
+}
+
+std::ostream&
+operator<<(std::ostream& str, Mission::MissionItem::GimbalYawMode const& gimbal_yaw_mode)
+{
+    switch (gimbal_yaw_mode) {
+        case Mission::MissionItem::GimbalYawMode::None:
+            return str << "None";
+        case Mission::MissionItem::GimbalYawMode::Body:
+            return str << "Body";
+        case Mission::MissionItem::GimbalYawMode::Global:
+            return str << "Global";
         default:
             return str << "Unknown";
     }
@@ -196,6 +213,7 @@ bool operator==(const Mission::MissionItem& lhs, const Mission::MissionItem& rhs
            ((std::isnan(rhs.gimbal_yaw_deg) && std::isnan(lhs.gimbal_yaw_deg)) ||
             rhs.gimbal_yaw_deg == lhs.gimbal_yaw_deg) &&
            (rhs.camera_action == lhs.camera_action) &&
+           (rhs.gimbal_yaw_mode == lhs.gimbal_yaw_mode) &&
            ((std::isnan(rhs.loiter_time_s) && std::isnan(lhs.loiter_time_s)) ||
             rhs.loiter_time_s == lhs.loiter_time_s) &&
            ((std::isnan(rhs.camera_photo_interval_s) && std::isnan(lhs.camera_photo_interval_s)) ||
@@ -205,6 +223,8 @@ bool operator==(const Mission::MissionItem& lhs, const Mission::MissionItem& rhs
            ((std::isnan(rhs.yaw_deg) && std::isnan(lhs.yaw_deg)) || rhs.yaw_deg == lhs.yaw_deg) &&
            ((std::isnan(rhs.camera_photo_distance_m) && std::isnan(lhs.camera_photo_distance_m)) ||
             rhs.camera_photo_distance_m == lhs.camera_photo_distance_m) &&
+           ((std::isnan(rhs.camera_zoom) && std::isnan(lhs.camera_zoom)) ||
+            rhs.camera_zoom == lhs.camera_zoom) &&
            (rhs.vehicle_action == lhs.vehicle_action);
 }
 
@@ -217,6 +237,7 @@ std::ostream& operator<<(std::ostream& str, Mission::MissionItem const& mission_
     str << "    relative_altitude_m: " << mission_item.relative_altitude_m << '\n';
     str << "    speed_m_s: " << mission_item.speed_m_s << '\n';
     str << "    is_fly_through: " << mission_item.is_fly_through << '\n';
+    str << "    gimbal_yaw_mode: " << mission_item.gimbal_yaw_mode << '\n';
     str << "    gimbal_pitch_deg: " << mission_item.gimbal_pitch_deg << '\n';
     str << "    gimbal_yaw_deg: " << mission_item.gimbal_yaw_deg << '\n';
     str << "    camera_action: " << mission_item.camera_action << '\n';
@@ -225,6 +246,7 @@ std::ostream& operator<<(std::ostream& str, Mission::MissionItem const& mission_
     str << "    acceptance_radius_m: " << mission_item.acceptance_radius_m << '\n';
     str << "    yaw_deg: " << mission_item.yaw_deg << '\n';
     str << "    camera_photo_distance_m: " << mission_item.camera_photo_distance_m << '\n';
+    str << "    camera_zoom: " << mission_item.camera_zoom << '\n';
     str << "    vehicle_action: " << mission_item.vehicle_action << '\n';
     str << '}';
     return str;

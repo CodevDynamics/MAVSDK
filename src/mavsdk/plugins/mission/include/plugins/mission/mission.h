@@ -100,6 +100,7 @@ public:
                                fixed-wing mode. */
             TransitionToMc, /**< @brief When a waypoint is reached vehicle will transition to
                                multi-copter mode. */
+            ReturnToLaunch,
         };
 
         /**
@@ -110,6 +111,17 @@ public:
         friend std::ostream&
         operator<<(std::ostream& str, Mission::MissionItem::VehicleAction const& vehicle_action);
 
+        /**
+         * @brief Gimbal Yaw angle body/rate/global mode
+         */
+        enum class GimbalYawMode {
+            None,
+            Body,
+            Global,
+        };
+        friend std::ostream&
+        operator<<(std::ostream& str, Mission::MissionItem::GimbalYawMode const& gimbal_yaw_mode);
+
         double latitude_deg{double(NAN)}; /**< @brief Latitude in degrees (range: -90 to +90) */
         double longitude_deg{double(NAN)}; /**< @brief Longitude in degrees (range: -180 to +180) */
         float relative_altitude_m{
@@ -119,6 +131,7 @@ public:
         bool is_fly_through{
             false}; /**< @brief True will make the drone fly through without stopping, while false
                        will make the drone stop on the waypoint */
+        GimbalYawMode gimbal_yaw_mode{}; /**< @brief Gimbal yaw mode */
         float gimbal_pitch_deg{float(NAN)}; /**< @brief Gimbal pitch (in degrees) */
         float gimbal_yaw_deg{float(NAN)}; /**< @brief Gimbal yaw (in degrees) */
         CameraAction camera_action{}; /**< @brief Camera action to trigger at this mission item */
@@ -130,6 +143,7 @@ public:
         float yaw_deg{float(NAN)}; /**< @brief Absolute yaw angle (in degrees) */
         float camera_photo_distance_m{
             NAN}; /**< @brief Camera photo distance to use after this mission item (in meters) */
+        float camera_zoom{float(NAN)}; /**< @brief Absolute camera zoom range (in degrees) */
         VehicleAction
             vehicle_action{}; /**< @brief Vehicle action to trigger at this mission item. */
     };

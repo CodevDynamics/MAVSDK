@@ -145,6 +145,10 @@ void MissionRawImpl::upload_mission_items_async(
     reset_mission_progress();
 
     const auto int_items = convert_to_int_items(mission_raw);
+    {
+        std::lock_guard<std::mutex> lock(_mission_progress.mutex);
+        _mission_progress.last.total = int_items.size();
+    }
 
     _last_upload = _system_impl->mission_transfer_client().upload_items_async(
         type,
@@ -178,6 +182,10 @@ void MissionRawImpl::upload_mission_items_async(
     reset_mission_progress();
 
     const auto int_items = convert_to_int_items(mission_raw);
+    {
+        std::lock_guard<std::mutex> lock(_mission_progress.mutex);
+        _mission_progress.last.total = int_items.size();
+    }
 
     _last_upload = _system_impl->mission_transfer_client().upload_items_async(
         type,
@@ -338,9 +346,6 @@ MissionRawImpl::convert_to_int_items(const std::vector<MissionRaw::MissionItem>&
     for (const auto& item : mission_raw) {
         int_items.push_back(convert_mission_raw(item));
     }
-
-    std::lock_guard<std::mutex> lock(_mission_progress.mutex);
-    _mission_progress.last.total = int_items.size();
 
     return int_items;
 }
