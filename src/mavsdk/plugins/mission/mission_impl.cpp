@@ -641,7 +641,8 @@ MissionImpl::convert_to_int_items(const std::vector<MissionItem>& mission_items)
         }
 
         if (item.vehicle_action != VehicleAction::None &&
-            item.vehicle_action != VehicleAction::Takeoff) {
+            item.vehicle_action != VehicleAction::Takeoff &&
+            item.vehicle_action != VehicleAction::ReturnToLaunch) {
             // There is a vehicle action that we need to send.
 
             // Current is the 0th waypoint
