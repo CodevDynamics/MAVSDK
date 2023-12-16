@@ -16,6 +16,12 @@ HttpLoader::HttpLoader() : _curl_wrapper(std::make_shared<CurlWrapper>())
     start();
 }
 
+HttpLoader::HttpLoader(const std::string& username, const std::string& password)
+    : _curl_wrapper(std::make_shared<CurlWrapper>(username, password))
+{
+    start();
+}
+
 HttpLoader::~HttpLoader()
 {
     stop();

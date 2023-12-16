@@ -32,6 +32,8 @@ public:
     // ICurlWrapper
     CurlWrapper() = default;
     virtual ~CurlWrapper() = default;
+
+    CurlWrapper(const std::string& un, const std::string& pw) : username(un), password(pw) {}
     bool download_text(const std::string& url, std::string& content) override;
     bool download_file_to_path(
         const std::string& url,
@@ -41,6 +43,9 @@ public:
         const std::string& url,
         const std::string& path,
         const ProgressCallback& progress_callback) override;
+private:
+    std::string username;
+    std::string password;
 };
 
 #ifdef TESTING

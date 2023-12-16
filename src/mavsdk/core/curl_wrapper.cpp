@@ -29,6 +29,8 @@ bool CurlWrapper::download_text(const std::string& url, std::string& content)
         curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, write_callback);
         curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &readBuffer);
+        if(!username.empty()) curl_easy_setopt(curl.get(), CURLOPT_USERNAME, username.c_str());
+        if(!password.empty()) curl_easy_setopt(curl.get(), CURLOPT_PASSWORD, password.c_str());
         res = curl_easy_perform(curl.get());
         content = readBuffer;
 
@@ -125,6 +127,8 @@ bool CurlWrapper::upload_file(
         curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl.get(), CURLOPT_HTTPPOST, post);
         curl_easy_setopt(curl.get(), CURLOPT_NOPROGRESS, 0L);
+        if(!username.empty()) curl_easy_setopt(curl.get(), CURLOPT_USERNAME, username.c_str());
+        if(!password.empty()) curl_easy_setopt(curl.get(), CURLOPT_PASSWORD, password.c_str());
 
         res = curl_easy_perform(curl.get());
 
@@ -194,6 +198,8 @@ bool CurlWrapper::download_file_to_path(
         curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, NULL);
         curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, fp);
         curl_easy_setopt(curl.get(), CURLOPT_NOPROGRESS, 0L);
+        if(!username.empty()) curl_easy_setopt(curl.get(), CURLOPT_USERNAME, username.c_str());
+        if(!password.empty()) curl_easy_setopt(curl.get(), CURLOPT_PASSWORD, password.c_str());
         res = curl_easy_perform(curl.get());
         fclose(fp);
 

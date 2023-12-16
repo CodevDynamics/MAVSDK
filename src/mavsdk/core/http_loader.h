@@ -19,6 +19,7 @@ public:
 #endif
 
     explicit HttpLoader();
+    explicit HttpLoader(const std::string& username, const std::string& password);
     ~HttpLoader();
 
     void start();
