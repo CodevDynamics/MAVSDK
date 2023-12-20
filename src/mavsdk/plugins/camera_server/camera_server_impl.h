@@ -58,13 +58,14 @@ public:
     void provide_server_params(std::unordered_map<std::string, ParamValue> params);
     bool retrieve_server_param(const std::string& name, ParamValue& value);
 
-    void update_camera_capture_status_idle(float available_capacity, int32_t image_capture_count);
-
     explicit CameraServerImpl(std::shared_ptr<ServerComponent> server_component);
     ~CameraServerImpl() override;
 
     void init() override;
     void deinit() override;
+
+    void update_camera_capture_status_idle(float available_capacity, int32_t image_capture_count);
+    bool update_camera_settings_status();
 
     CameraServer::Result set_information(CameraServer::Information information);
     CameraServer::Result set_in_progress(bool in_progress);

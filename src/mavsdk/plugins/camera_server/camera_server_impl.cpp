@@ -359,6 +359,34 @@ void CameraServerImpl::update_camera_capture_status_idle(float available_capacit
     });
 }
 
+bool CameraServerImpl::update_camera_settings_status()
+{
+    if(_camera_settings_callback) {
+        _server_component_impl->call_user_callback(
+        [this]() {
+            uint8_t mode_id = static_cast<uint8_t>(CAMERA_MODE::CAMERA_MODE_IMAGE);
+            float zoom_level = 0;
+            float focus_level = 0;
+            _camera_settings_callback(mode_id, zoom_level, focus_level);
+            _server_component_impl->queue_message([&](MavlinkAddress mavlink_address, uint8_t channel) {
+                mavlink_message_t message{};
+                mavlink_msg_camera_settings_pack_chan(
+                    mavlink_address.system_id,
+                    mavlink_address.component_id,
+                    channel,
+                    &message,
+                    static_cast<uint32_t>(_server_component_impl->get_time().elapsed_s() * 1e3),
+                    mode_id,
+                    zoom_level,
+                    focus_level);
+                return message;
+            });
+        });
+        return true;
+    }
+    return false;
+}
+
 CameraServer::TakePhotoHandle
 CameraServerImpl::subscribe_take_photo(const CameraServer::TakePhotoCallback& callback)
 {
@@ -590,32 +618,11 @@ std::optional<mavlink_command_ack_t> CameraServerImpl::process_camera_settings_r
             command, MAV_RESULT::MAV_RESULT_ACCEPTED);
     }
 
-    // unsupported
-    uint8_t mode_id = static_cast<uint8_t>(CAMERA_MODE::CAMERA_MODE_IMAGE);
-    float zoom_level = 0;
-    float focus_level = 0;
-    if(_camera_settings_callback) {
-        _camera_settings_callback(mode_id, zoom_level, focus_level);
-    }
-
-    _server_component_impl->queue_message([&](MavlinkAddress mavlink_address, uint8_t channel) {
-        mavlink_message_t message{};
-        mavlink_msg_camera_settings_pack_chan(
-            mavlink_address.system_id,
-            mavlink_address.component_id,
-            channel,
-            &message,
-            static_cast<uint32_t>(_server_component_impl->get_time().elapsed_s() * 1e3),
-            mode_id,
-            zoom_level,
-            focus_level);
-        return message;
-    });
-    LogDebug() << "sent settings msg";
+    bool success = update_camera_settings_status();
 
     // ack was already sent
     return _server_component_impl->make_command_ack_message(
-        command, MAV_RESULT::MAV_RESULT_ACCEPTED);
+        command, success ? MAV_RESULT::MAV_RESULT_ACCEPTED : MAV_RESULT_UNSUPPORTED);
 }
 
 std::optional<mavlink_command_ack_t> CameraServerImpl::process_storage_information_request(
@@ -635,36 +642,37 @@ std::optional<mavlink_command_ack_t> CameraServerImpl::process_storage_informati
             command, MAV_RESULT::MAV_RESULT_TEMPORARILY_REJECTED);
     }
 
-    uint8_t video_status = 0;
-    uint32_t recording_time_ms = 0;
-    if(_video_status_callback) {
-        _video_status_callback(video_status, recording_time_ms, _storage_information.available_capacity);
-    }
+    _server_component_impl->call_user_callback(
+        [storage_id, this]() {
+        uint8_t video_status = 0;
+        uint32_t recording_time_ms = 0;
+        if(_video_status_callback) {
+            _video_status_callback(video_status, recording_time_ms, _storage_information.available_capacity);
+        }
 
-    _server_component_impl->queue_message([&](MavlinkAddress mavlink_address, uint8_t channel) {
-        mavlink_message_t message{};
-        mavlink_msg_storage_information_pack_chan(
-            mavlink_address.system_id,
-            mavlink_address.component_id,
-            channel,
-            &message,
-            static_cast<uint32_t>(_server_component_impl->get_time().elapsed_s() * 1e3),
-            storage_id,
-            _storage_information.storage_count,
-            _storage_information.status,
-            _storage_information.total_capacity,
-            _storage_information.used_capacity,
-            _storage_information.available_capacity,
-            _storage_information.read_speed,
-            _storage_information.write_speed,
-            _storage_information.type,
-            _storage_information.name.data(),
-            _storage_information.storage_usage);
+        _server_component_impl->queue_message([&](MavlinkAddress mavlink_address, uint8_t channel) {
+            mavlink_message_t message{};
+            mavlink_msg_storage_information_pack_chan(
+                mavlink_address.system_id,
+                mavlink_address.component_id,
+                channel,
+                &message,
+                static_cast<uint32_t>(_server_component_impl->get_time().elapsed_s() * 1e3),
+                storage_id,
+                _storage_information.storage_count,
+                _storage_information.status,
+                _storage_information.total_capacity,
+                _storage_information.used_capacity,
+                _storage_information.available_capacity,
+                _storage_information.read_speed,
+                _storage_information.write_speed,
+                _storage_information.type,
+                _storage_information.name.data(),
+                _storage_information.storage_usage);
 
-        return message;
+            return message;
+        });
     });
-
-    LogDebug() << "sent storage msg";
 
     // ack was already sent
     return _server_component_impl->make_command_ack_message(
@@ -786,28 +794,31 @@ std::optional<mavlink_command_ack_t> CameraServerImpl::process_camera_capture_st
         image_status |= StatusFlags::INTERVAL_SET;
     }
 
-    uint8_t video_status = 0;
-    uint32_t recording_time_ms = 0;
-    float available_capacity = 0;
-    if(_video_status_callback) {
-        _video_status_callback(video_status, recording_time_ms, available_capacity);
-    }
+    _server_component_impl->call_user_callback(
+        [image_status, this]() {
+        uint8_t video_status = 0;
+        uint32_t recording_time_ms = 0;
+        float available_capacity = 0;
+        if(_video_status_callback) {
+            _video_status_callback(video_status, recording_time_ms, available_capacity);
+        }
 
-    _server_component_impl->queue_message([&](MavlinkAddress mavlink_address, uint8_t channel) {
-        mavlink_message_t message{};
-        mavlink_msg_camera_capture_status_pack_chan(
-            mavlink_address.system_id,
-            mavlink_address.component_id,
-            channel,
-            &message,
-            static_cast<uint32_t>(_server_component_impl->get_time().elapsed_s() * 1e3),
-            image_status,
-            video_status,
-            _image_capture_timer_interval_s,
-            recording_time_ms,
-            available_capacity,
-            _image_capture_count);
-        return message;
+        _server_component_impl->queue_message([&](MavlinkAddress mavlink_address, uint8_t channel) {
+            mavlink_message_t message{};
+            mavlink_msg_camera_capture_status_pack_chan(
+                mavlink_address.system_id,
+                mavlink_address.component_id,
+                channel,
+                &message,
+                static_cast<uint32_t>(_server_component_impl->get_time().elapsed_s() * 1e3),
+                image_status,
+                video_status,
+                _image_capture_timer_interval_s,
+                recording_time_ms,
+                available_capacity,
+                _image_capture_count);
+            return message;
+        });
     });
 
     // ack was already sent
@@ -826,7 +837,10 @@ CameraServerImpl::process_reset_camera_settings(const MavlinkCommandReceiver::Co
             command, MAV_RESULT::MAV_RESULT_UNSUPPORTED);
     }
 
-    _reset_callbacks(reset);
+    _server_component_impl->call_user_callback(
+        [reset, this]() {
+        _reset_callbacks(reset);
+    });
 
     return _server_component_impl->make_command_ack_message(
         command, MAV_RESULT::MAV_RESULT_ACCEPTED);
@@ -843,7 +857,10 @@ CameraServerImpl::process_set_camera_mode(const MavlinkCommandReceiver::CommandL
             command, MAV_RESULT::MAV_RESULT_UNSUPPORTED);
     }
 
-    _mode_callbacks(camera_mode);
+    _server_component_impl->call_user_callback(
+        [camera_mode, this]() {
+        _mode_callbacks(camera_mode);
+    });
 
     return _server_component_impl->make_command_ack_message(
         command, MAV_RESULT::MAV_RESULT_ACCEPTED);
@@ -861,7 +878,10 @@ CameraServerImpl::process_set_camera_zoom(const MavlinkCommandReceiver::CommandL
             command, MAV_RESULT::MAV_RESULT_UNSUPPORTED);
     }
 
-    _zoom_callbacks(zoom_type, zoom_value);
+    _server_component_impl->call_user_callback(
+        [zoom_type, zoom_value, this]() {
+        _zoom_callbacks(zoom_type, zoom_value);
+    });
 
     return _server_component_impl->make_command_ack_message(
         command, MAV_RESULT::MAV_RESULT_ACCEPTED);
@@ -879,7 +899,10 @@ CameraServerImpl::process_set_camera_focus(const MavlinkCommandReceiver::Command
             command, MAV_RESULT::MAV_RESULT_UNSUPPORTED);
     }
 
-    _focus_callbacks(focus_type, focus_value);
+    _server_component_impl->call_user_callback(
+        [focus_type, focus_value, this]() {
+        _focus_callbacks(focus_type, focus_value);
+    });
 
     return _server_component_impl->make_command_ack_message(
         command, MAV_RESULT::MAV_RESULT_ACCEPTED);
