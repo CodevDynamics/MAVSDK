@@ -122,6 +122,7 @@ install(TARGETS mavsdk
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
 
+file(GLOB_RECURSE HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/*.h)
 install(FILES
     include/mavsdk/connection_result.h
     include/mavsdk/deprecated.h
@@ -135,6 +136,7 @@ install(FILES
     include/mavsdk/server_component.h
     include/mavsdk/mavlink_address.h
     ${CMAKE_CURRENT_BINARY_DIR}/include/mavsdk/mavlink_include.h
+    ${HEADERS}
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/mavsdk"
 )
 

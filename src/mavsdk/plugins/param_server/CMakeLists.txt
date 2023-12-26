@@ -9,7 +9,8 @@ target_include_directories(mavsdk PUBLIC
     $<INSTALL_INTERFACE:include/mavsdk>
     )
 
+file(GLOB_RECURSE HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/*.h)
 install(FILES
-    include/plugins/param_server/param_server.h
+    ${HEADERS}
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/mavsdk/plugins/param_server
 )

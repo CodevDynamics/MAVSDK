@@ -55,8 +55,10 @@ public:
 
     void push_stream_info(const mavlink_video_stream_information_t& info);
     void clean_stream_info();
-    void provide_server_params(std::unordered_map<std::string, ParamValue> params);
+    void provide_server_params(std::unordered_map<std::string, ParamValue> params, bool report = false);
     bool retrieve_server_param(const std::string& name, ParamValue& value);
+
+    void call_user_callback_located(const std::string& filename, int linenumber, const std::function<void()>& func);
 
     explicit CameraServerImpl(std::shared_ptr<ServerComponent> server_component);
     ~CameraServerImpl() override;

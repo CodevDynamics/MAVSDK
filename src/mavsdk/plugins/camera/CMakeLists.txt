@@ -14,8 +14,9 @@ target_include_directories(mavsdk
     $<INSTALL_INTERFACE:include/mavsdk>
     )
 
+file(GLOB_RECURSE HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/*.h)
 install(FILES
-    include/plugins/camera/camera.h
+    ${HEADERS}
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/mavsdk/plugins/camera
 )
 

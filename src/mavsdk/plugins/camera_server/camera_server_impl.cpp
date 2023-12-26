@@ -321,10 +321,13 @@ void CameraServerImpl::clean_stream_info()
     _stream_info.clear();
 }
 
-void CameraServerImpl::provide_server_params(std::unordered_map<std::string, ParamValue> params)
+void CameraServerImpl::provide_server_params(std::unordered_map<std::string, ParamValue> params, bool report)
 {
     for (auto const& param : params) {
-        _server_component_impl->mavlink_parameter_server().provide_server_param(param.first, param.second);
+        MavlinkParameterServer::Result ret_server = _server_component_impl->mavlink_parameter_server().provide_server_param(param.first, param.second);
+        if(report && ret_server == MavlinkParameterServer::Result::Success) {
+            _server_component_impl->mavlink_parameter_server().publish_server_param(param.first, true);
+        }
     }
 }
 
@@ -336,6 +339,11 @@ bool CameraServerImpl::retrieve_server_param(const std::string& name, ParamValue
     } else {
         return false;
     }
+}
+
+void CameraServerImpl::call_user_callback_located(const std::string& filename, const int linenumber, const std::function<void()>& func)
+{
+    _server_component_impl->call_user_callback_located(filename, linenumber, func);
 }
 
 void CameraServerImpl::update_camera_capture_status_idle(float available_capacity, int32_t image_capture_count)
