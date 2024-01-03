@@ -724,7 +724,7 @@ void MavlinkParameterClient::process_param_value(const mavlink_message_t& messag
                         item.param_identifier,
                         safe_param_id,
                         static_cast<int16_t>(param_value.param_index))) {
-                    LogWarn() << "Got unexpected response on work item";
+                    LogDebug() << "Got unexpected response on work item";
                     // No match, let's just return the borrowed work item.
                     return;
                 }
@@ -861,7 +861,7 @@ void MavlinkParameterClient::process_param_ext_value(const mavlink_message_t& me
                         item.param_identifier,
                         safe_param_id,
                         static_cast<int16_t>(param_ext_value.param_index))) {
-                    LogWarn() << "Got unexpected response on work item";
+                    LogDebug() << "Got unexpected response on work item";
                     // No match, let's just return the borrowed work item.
                     return;
                 }

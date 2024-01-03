@@ -442,7 +442,7 @@ bool MavsdkImpl::send_message(mavlink_message_t& message)
     }
 
     if (successful_emissions == 0) {
-        LogErr() << "Sending message failed, target_id " << (int)target_system_id;
+        LogDebug() << "Sending message failed, target_id " << (int)target_system_id;
         return false;
     }
 

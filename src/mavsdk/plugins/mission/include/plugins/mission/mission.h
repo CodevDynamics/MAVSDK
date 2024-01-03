@@ -126,6 +126,8 @@ public:
         double longitude_deg{double(NAN)}; /**< @brief Longitude in degrees (range: -180 to +180) */
         float relative_altitude_m{
             float(NAN)}; /**< @brief Altitude relative to takeoff altitude in metres */
+        float absolute_altitude_m{
+            float(NAN)}; /**< @brief Altitude absolute of GPS in metres */
         float speed_m_s{
             float(NAN)}; /**< @brief Speed to use after this mission item (in metres/second) */
         bool is_fly_through{

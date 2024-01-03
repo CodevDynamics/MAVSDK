@@ -342,7 +342,7 @@ std::pair<Mission::Result, bool> MissionImpl::get_return_to_launch_after_mission
 bool MissionImpl::has_valid_position(const MissionItem& item)
 {
     return std::isfinite(item.latitude_deg) && std::isfinite(item.longitude_deg) &&
-           std::isfinite(item.relative_altitude_m);
+           (std::isfinite(item.relative_altitude_m) || std::isfinite(item.absolute_altitude_m));
 }
 
 float MissionImpl::hold_time(const MissionItem& item)
@@ -400,8 +400,15 @@ MissionImpl::convert_to_int_items(const std::vector<MissionItem>& mission_items)
 
             const int32_t x = int32_t(std::round(item.latitude_deg * 1e7));
             const int32_t y = int32_t(std::round(item.longitude_deg * 1e7));
-            float z = item.relative_altitude_m;
-            MAV_FRAME frame = MAV_FRAME_GLOBAL_RELATIVE_ALT_INT;
+            float z;
+            MAV_FRAME frame;
+            if(std::isfinite(item.absolute_altitude_m)) {
+                z = item.absolute_altitude_m;
+                frame = MAV_FRAME_GLOBAL_INT;
+            } else {
+                z = item.relative_altitude_m;
+                frame = MAV_FRAME_GLOBAL_RELATIVE_ALT_INT;
+            }
 
             MavlinkMissionTransferClient::ItemInt next_item{
                 static_cast<uint16_t>(int_items.size()),
@@ -427,11 +434,19 @@ MissionImpl::convert_to_int_items(const std::vector<MissionItem>& mission_items)
 
                 const int32_t x = int32_t(std::round(item.latitude_deg * 1e7));
                 const int32_t y = int32_t(std::round(item.longitude_deg * 1e7));
-                const float z = item.relative_altitude_m;
+                float z;
+                MAV_FRAME frame;
+                if(std::isfinite(item.absolute_altitude_m)) {
+                    z = item.absolute_altitude_m;
+                    frame = MAV_FRAME_GLOBAL_INT;
+                } else {
+                    z = item.relative_altitude_m;
+                    frame = MAV_FRAME_GLOBAL_RELATIVE_ALT_INT;
+                }
 
                 MavlinkMissionTransferClient::ItemInt next_item{
                     static_cast<uint16_t>(int_items.size()),
-                    static_cast<uint8_t>(MAV_FRAME_GLOBAL_RELATIVE_ALT_INT),
+                    static_cast<uint8_t>(frame),
                     static_cast<uint8_t>(MAV_CMD_NAV_WAYPOINT),
                     current,
                     1, // autocontinue
@@ -675,8 +690,15 @@ MissionImpl::convert_to_int_items(const std::vector<MissionItem>& mission_items)
 
             const int32_t x = int32_t(std::round(item.latitude_deg * 1e7));
             const int32_t y = int32_t(std::round(item.longitude_deg * 1e7));
-            float z = item.relative_altitude_m;
-            MAV_FRAME frame = MAV_FRAME_GLOBAL_RELATIVE_ALT_INT;
+            float z;
+            MAV_FRAME frame;
+            if(std::isfinite(item.absolute_altitude_m)) {
+                z = item.absolute_altitude_m;
+                frame = MAV_FRAME_GLOBAL_INT;
+            } else {
+                z = item.relative_altitude_m;
+                frame = MAV_FRAME_GLOBAL_RELATIVE_ALT_INT;
+            }
 
             if (command == MAV_CMD_NAV_LAND) {
                 z = 0;
@@ -760,7 +782,9 @@ std::pair<Mission::Result, Mission::MissionPlan> MissionImpl::convert_to_result_
             if (int_item.command == MAV_CMD_NAV_WAYPOINT ||
                 int_item.command == MAV_CMD_NAV_TAKEOFF) {
                 if (int_item.frame != MAV_FRAME_GLOBAL_RELATIVE_ALT_INT &&
-                    int_item.frame != MAV_FRAME_GLOBAL_RELATIVE_ALT) {
+                    int_item.frame != MAV_FRAME_GLOBAL_RELATIVE_ALT &&
+                    int_item.frame != MAV_FRAME_GLOBAL_INT &&
+                    int_item.frame != MAV_FRAME_GLOBAL) {
                     LogErr() << "Waypoint frame not supported unsupported";
                     result_pair.first = Mission::Result::Unsupported;
                     break;
@@ -775,7 +799,11 @@ std::pair<Mission::Result, Mission::MissionPlan> MissionImpl::convert_to_result_
 
                 new_mission_item.latitude_deg = double(int_item.x) * 1e-7;
                 new_mission_item.longitude_deg = double(int_item.y) * 1e-7;
-                new_mission_item.relative_altitude_m = int_item.z;
+                if(int_item.frame == MAV_FRAME_GLOBAL_INT || int_item.frame == MAV_FRAME_GLOBAL) {
+                    new_mission_item.absolute_altitude_m = int_item.z;
+                } else {
+                    new_mission_item.relative_altitude_m = int_item.z;
+                }
                 new_mission_item.yaw_deg = int_item.param4;
 
                 if (int_item.command == MAV_CMD_NAV_TAKEOFF) {
