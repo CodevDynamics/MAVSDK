@@ -539,7 +539,7 @@ bool CameraDefinition::get_possible_settings_locked(
     return (settings.size() > 0);
 }
 
-bool CameraDefinition::set_setting(const std::string& name, const ParamValue& value)
+bool CameraDefinition::set_setting(const std::string& name, const ParamValue& value, bool updates)
 {
     std::lock_guard<std::mutex> lock(_mutex);
 
@@ -566,6 +566,10 @@ bool CameraDefinition::set_setting(const std::string& name, const ParamValue& va
 
     _current_settings[name].value = value;
     _current_settings[name].needs_updating = false;
+
+    if(!updates) {
+        return true;
+    }
 
     // Some param changes cause other params to change, so they need to be updated.
     // The camera definition just keeps track of these params but the actual param fetching

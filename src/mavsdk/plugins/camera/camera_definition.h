@@ -31,7 +31,7 @@ public:
         ParamValue value;
     };
 
-    bool set_setting(const std::string& name, const ParamValue& value);
+    bool set_setting(const std::string& name, const ParamValue& value, bool updates = true);
     bool get_setting(const std::string& name, ParamValue& value);
     bool get_all_settings(std::unordered_map<std::string, ParamValue>& settings);
     bool get_possible_settings(std::unordered_map<std::string, ParamValue>& settings);

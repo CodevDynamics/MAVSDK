@@ -463,7 +463,14 @@ std::pair<ConnectionResult, Mavsdk::ConnectionHandle> MavsdkImpl::add_any_connec
 
             if (cli_arg.get_path().empty() || cli_arg.get_path() == Mavsdk::DEFAULT_UDP_BIND_IP) {
                 std::string path = Mavsdk::DEFAULT_UDP_BIND_IP;
-                return add_udp_connection(path, port, forwarding_option);
+                auto result = add_udp_connection(path, port, forwarding_option);
+                if(result.first == ConnectionResult::Success) {
+                    auto remotes = cli_arg.get_remotes();
+                    for (const auto& pair : remotes) {
+                        _udpConnections.back()->add_remote(pair.first, pair.second);
+                    }
+                }
+                return result;
             } else {
                 std::string path = cli_arg.get_path();
                 return setup_udp_remote(path, port, forwarding_option);

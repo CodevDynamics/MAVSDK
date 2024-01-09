@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <limits>
 #include <cstdint>
+#include <regex>
 
 namespace mavsdk {
 
@@ -13,13 +14,22 @@ void CliArg::reset()
     _path.clear();
     _baudrate = 0;
     _port = 0;
+    _remotes.clear();
 }
 
 bool CliArg::parse(const std::string& uri)
 {
     reset();
 
-    std::string rest(uri);
+    std::string rest;
+    std::string rest2;
+    size_t ampersandPos = uri.find('&');
+    if(ampersandPos > 0) {
+        rest = uri.substr(0, ampersandPos);
+        rest2 = uri.substr(ampersandPos+1);
+    } else {
+        rest = uri;
+    }
     if (!find_protocol(rest)) {
         return false;
     }
@@ -35,6 +45,8 @@ bool CliArg::parse(const std::string& uri)
     } else {
         if (!find_port(rest)) {
             return false;
+        } else if(!rest2.empty()) {
+            find_remotes(rest2);
         }
     }
 
@@ -171,6 +183,19 @@ bool CliArg::find_baudrate(std::string& rest)
     }
     _baudrate = std::stoi(rest);
     return true;
+}
+
+void CliArg::find_remotes(std::string& rest)
+{
+    std::regex pattern("(\\d+\\.\\d+\\.\\d+\\.\\d+):(\\d+);?");
+    std::smatch match;
+    std::string secondPart = rest;
+    while (std::regex_search(secondPart, match, pattern)) {
+        std::string ip = match[1].str();
+        int port = std::stoi(match[2].str());
+        _remotes.emplace_back(ip, port);
+        secondPart = match.suffix();
+    }
 }
 
 } // namespace mavsdk
