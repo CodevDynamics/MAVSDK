@@ -43,6 +43,21 @@ void Connection::stop_mavlink_receiver()
 
 void Connection::receive_message(mavlink_message_t& message, Connection* connection)
 {
+    if(message.msgid == MAVLINK_MSG_ID_PING && message.compid == MAV_COMP_ID_UDP_BRIDGE) {
+        mavlink_ping_t ping;
+        mavlink_msg_ping_decode(&message, &ping);
+        if(ping.target_component == MAV_COMP_ID_MISSIONPLANNER && ping.target_system == 0) {
+            mavlink_message_t msg;
+            mavlink_msg_ping_pack(ping.target_system,
+                                  MAV_COMP_ID_MISSIONPLANNER,
+                                  &msg,
+                                  ping.time_usec,
+                                  ping.seq,
+                                  message.sysid,
+                                  message.compid);
+            send_message(msg);
+        }
+    }
     // Register system ID when receiving a message from a new system.
     if (_system_ids.find(message.sysid) == _system_ids.end()) {
         _system_ids.insert(message.sysid);

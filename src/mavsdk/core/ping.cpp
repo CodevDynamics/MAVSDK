@@ -58,14 +58,14 @@ void Ping::process_ping(const mavlink_message_t& message)
         });
 
     } else {
-        // Answer from ping request.
-        if (ping.seq != _ping_sequence) {
-            LogWarn() << "Ignoring unknown ping sequence";
+        if (message.compid != MAV_COMP_ID_AUTOPILOT1) {
+            // We're currently only interested in the ping of the autopilot.
             return;
         }
 
-        if (message.compid != MAV_COMP_ID_AUTOPILOT1) {
-            // We're currently only interested in the ping of the autopilot.
+        // Answer from ping request.
+        if (ping.seq != _ping_sequence) {
+            LogWarn() << "Ignoring unknown ping sequence";
             return;
         }
 
