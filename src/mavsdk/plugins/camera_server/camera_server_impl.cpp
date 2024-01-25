@@ -1204,7 +1204,12 @@ void CameraServerImpl::process_param_changed(std::string name)
 
     _server_component_impl->call_user_callback(
         [name, this]() {
-            _param_changed_callbacks(name);
+            ParamValue value;
+            if(retrieve_server_param(name, value)) {
+                _param_changed_callbacks(name, value);
+            } else {
+                LogWarn() << "failed to retrieve param " << name;
+            }
         });
 }
 

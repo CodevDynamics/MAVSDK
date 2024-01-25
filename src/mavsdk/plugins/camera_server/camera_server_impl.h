@@ -20,8 +20,8 @@ public:
     using ResetCallback = std::function<void(bool)>;
     using FormatHandle = Handle<uint8_t,bool&,bool>;
     using FormatCallback = std::function<void(uint8_t,bool&,bool)>;
-    using ParamChangedHandle = Handle<std::string>;
-    using ParamChangedCallback = std::function<void(std::string)>;
+    using ParamChangedHandle = Handle<std::string,ParamValue>;
+    using ParamChangedCallback = std::function<void(std::string,ParamValue)>;
     struct StorageInformation {
         uint8_t storage_count;
         uint8_t status;
@@ -91,7 +91,7 @@ private:
     CallbackList<uint8_t> _mode_callbacks{};
     CallbackList<bool> _reset_callbacks{};
     CallbackList<uint8_t,bool&,bool> _format_callbacks{};
-    CallbackList<std::string> _param_changed_callbacks{};
+    CallbackList<std::string,ParamValue> _param_changed_callbacks{};
 
     std::mutex _stream_info_mutex{};
     std::vector<mavlink_video_stream_information_t> _stream_info;
