@@ -19,7 +19,7 @@ namespace mavsdk {
 
 template class CallbackList<>;
 
-MavsdkImpl::MavsdkImpl() : timeout_handler(time), call_every_handler(time)
+MavsdkImpl::MavsdkImpl() : timeout_handler(time), call_every_handler(time), ping(*this)
 {
     LogInfo() << "MAVSDK version: " << mavsdk_version;
 
@@ -437,8 +437,12 @@ bool MavsdkImpl::send_message(mavlink_message_t& message)
 
     uint8_t successful_emissions = 0;
     const uint8_t target_system_id = get_target_system_id(message);
+    const uint8_t target_component_id = get_target_component_id(message);
     for (auto& _connection : _connections) {
         if (target_system_id != 0 && !(*_connection.connection).has_system_id(target_system_id)) {
+            continue;
+        }
+        if (target_component_id != 0 && !(*_connection.connection).has_component_id(target_component_id)) {
             continue;
         }
 
@@ -793,6 +797,8 @@ bool MavsdkImpl::is_any_system_connected() const
 
 void MavsdkImpl::work_thread()
 {
+    SteadyTimePoint last_ping_time{};
+
     while (!_should_exit) {
         timeout_handler.run_once();
         call_every_handler.run_once();
@@ -804,6 +810,14 @@ void MavsdkImpl::work_thread()
                     it.second->_impl->do_work();
                 }
             }
+        }
+
+        if (time.elapsed_since_s(last_ping_time) >= PING_INTERVAL_S &&
+            _configuration.get_usage_type() == Mavsdk::Configuration::UsageType::GroundStation) {
+            if (is_any_system_connected()) {
+                ping.run_once();
+            }
+            last_ping_time = time.steady_time();
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(10));

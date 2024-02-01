@@ -5,11 +5,11 @@
 
 namespace mavsdk {
 
-class SystemImpl;
+class MavsdkImpl;
 
 class Ping {
 public:
-    explicit Ping(SystemImpl& system_impl);
+    explicit Ping(MavsdkImpl& mavsdk_impl);
     ~Ping();
 
     void run_once();
@@ -21,7 +21,7 @@ public:
 private:
     void process_ping(const mavlink_message_t& message);
 
-    SystemImpl& _system_impl;
+    MavsdkImpl& _mavsdk_impl;
     uint32_t _ping_sequence{0};
     std::atomic<uint64_t> _last_ping_time_us{0};
 };

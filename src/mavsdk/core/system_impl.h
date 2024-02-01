@@ -15,7 +15,6 @@
 #include "mavlink_statustext_handler.h"
 #include "request_message.h"
 #include "ardupilot_custom_mode.h"
-#include "ping.h"
 #include "timeout_handler.h"
 #include "safe_queue.h"
 #include "timesync.h"
@@ -272,8 +271,6 @@ public:
     Time& get_time();
     AutopilotTime& get_autopilot_time() { return _autopilot_time; };
 
-    double get_ping_time_s() const { return _ping.last_ping_time_s(); }
-
     void register_plugin(PluginImplBase* plugin_impl);
     void unregister_plugin(PluginImplBase* plugin_impl);
 
@@ -378,8 +375,6 @@ private:
 
     std::atomic<bool> _autopilot_version_pending{false};
 
-    static constexpr double _ping_interval_s = 5.0;
-
     struct ParamSenderEntry {
         std::unique_ptr<MavlinkParameterClient> parameter_client;
         uint8_t component_id;
@@ -390,7 +385,6 @@ private:
     MavlinkCommandSender _command_sender;
 
     Timesync _timesync;
-    Ping _ping;
 
     MavlinkMissionTransferClient _mission_transfer_client;
     RequestMessage _request_message;

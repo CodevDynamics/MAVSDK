@@ -25,7 +25,6 @@ SystemImpl::SystemImpl(MavsdkImpl& mavsdk_impl) :
     _mavsdk_impl(mavsdk_impl),
     _command_sender(*this),
     _timesync(*this),
-    _ping(*this),
     _mission_transfer_client(
         _mavsdk_impl.default_server_component_impl().sender(),
         _mavsdk_impl.mavlink_message_handler,
@@ -280,8 +279,6 @@ void SystemImpl::heartbeats_timed_out()
 
 void SystemImpl::system_thread()
 {
-    SteadyTimePoint last_ping_time{};
-
     while (!_should_exit) {
         {
             std::lock_guard<std::mutex> lock(_mavlink_parameter_clients_mutex);
@@ -293,14 +290,6 @@ void SystemImpl::system_thread()
         _timesync.do_work();
         _mission_transfer_client.do_work();
         _mavlink_ftp_client.do_work();
-
-        if (_mavsdk_impl.time.elapsed_since_s(last_ping_time) >= SystemImpl::_ping_interval_s &&
-            _mavsdk_impl.get_own_component_id() != MavsdkImpl::DEFAULT_COMPONENT_ID_AUTOPILOT) {
-            if (_connected && _autopilot != Autopilot::ArduPilot) {
-                _ping.run_once();
-            }
-            last_ping_time = _mavsdk_impl.time.steady_time();
-        }
 
         if (_connected) {
             // Work fairly fast if we're connected.

@@ -23,6 +23,7 @@
 #include "sender.h"
 #include "timeout_handler.h"
 #include "callback_list.h"
+#include "ping.h"
 
 namespace mavsdk {
 class UdpConnection;
@@ -108,6 +109,7 @@ public:
     Time time{};
     TimeoutHandler timeout_handler;
     CallEveryHandler call_every_handler;
+    Ping ping;
 
     void call_user_callback_located(
         const std::string& filename, int linenumber, const std::function<void()>& func);
@@ -180,6 +182,7 @@ private:
 
     std::atomic<double> _timeout_s{Mavsdk::DEFAULT_TIMEOUT_S};
 
+    static constexpr double PING_INTERVAL_S = 5.0;
     static constexpr double HEARTBEAT_SEND_INTERVAL_S = 1.0;
     void* _heartbeat_send_cookie{nullptr};
 

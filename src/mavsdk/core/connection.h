@@ -23,6 +23,7 @@ public:
     virtual bool send_message(const mavlink_message_t& message) = 0;
 
     bool has_system_id(uint8_t system_id);
+    bool has_component_id(uint8_t component_id);
     bool should_forward_messages() const;
     static unsigned forwarding_connections_count();
 
@@ -39,6 +40,7 @@ protected:
     std::unique_ptr<MavlinkReceiver> _mavlink_receiver;
     ForwardingOption _forwarding_option;
     std::unordered_set<uint8_t> _system_ids;
+    std::unordered_set<uint8_t> _component_ids;
 
     static std::atomic<unsigned> _forwarding_connections_count;
 

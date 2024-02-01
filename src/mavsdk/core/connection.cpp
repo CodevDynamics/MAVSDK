@@ -15,6 +15,7 @@ Connection::Connection(ReceiverCallback receiver_callback, ForwardingOption forw
 {
     // Insert system ID 0 in all connections for broadcast.
     _system_ids.insert(0);
+    _component_ids.insert(0);
 
     if (forwarding_option == ForwardingOption::ForwardingOn) {
         _forwarding_connections_count++;
@@ -62,6 +63,9 @@ void Connection::receive_message(mavlink_message_t& message, Connection* connect
     if (_system_ids.find(message.sysid) == _system_ids.end()) {
         _system_ids.insert(message.sysid);
     }
+    if (_component_ids.find(message.compid) == _component_ids.end()) {
+        _component_ids.insert(message.compid);
+    }
     _receiver_callback(message, connection);
 }
 
@@ -78,6 +82,11 @@ unsigned Connection::forwarding_connections_count()
 bool Connection::has_system_id(uint8_t system_id)
 {
     return _system_ids.find(system_id) != _system_ids.end();
+}
+
+bool Connection::has_component_id(uint8_t component_id)
+{
+    return _component_ids.find(component_id) != _component_ids.end();
 }
 
 } // namespace mavsdk
