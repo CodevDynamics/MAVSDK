@@ -336,6 +336,7 @@ bool CameraServerImpl::retrieve_server_param(const std::string& name, ParamValue
     std::pair<MavlinkParameterServer::Result, ParamValue> result = _server_component_impl->mavlink_parameter_server().retrieve_server_param(name);
     if(result.first == MavlinkParameterServer::Result::Success) {
         value = result.second;
+        return true;
     } else {
         return false;
     }

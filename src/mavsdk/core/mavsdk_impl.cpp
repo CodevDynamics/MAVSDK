@@ -272,12 +272,18 @@ void MavsdkImpl::forward_message(mavlink_message_t& message, Connection* connect
         for (auto& entry : _connections) {
             // Check whether the connection is not the one from which we received the message.
             // And also check if the connection was set to forward messages.
-            if (entry.connection.get() == connection ||
-                !entry.connection->should_forward_messages()) {
-                continue;
-            }
-            if ((*entry.connection).send_message(message)) {
-                successful_emissions++;
+            if(_configuration.get_usage_type() == Mavsdk::Configuration::UsageType::GroundStation) {
+                if (entry.connection.get() == connection ||
+                    !entry.connection->should_forward_messages()) {
+                    continue;
+                }
+                if ((*entry.connection).send_message(message)) {
+                    successful_emissions++;
+                }
+            } else if(connection->should_forward_messages() && entry.connection.get() != connection) {
+                if ((*entry.connection).send_message(message)) {
+                    successful_emissions++;
+                }
             }
         }
         if (successful_emissions == 0) {
