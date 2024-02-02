@@ -287,7 +287,7 @@ void MavsdkImpl::forward_message(mavlink_message_t& message, Connection* connect
             }
         }
         if (successful_emissions == 0) {
-            LogErr() << "Message forwarding failed";
+            LogDebug() << "Message forwarding failed";
         }
     }
 }
