@@ -966,7 +966,7 @@ uint8_t MavsdkImpl::get_target_component_id(const mavlink_message_t& message)
         return 0;
     }
 
-    return (_MAV_PAYLOAD(&message))[meta->target_system_ofs];
+    return (_MAV_PAYLOAD(&message))[meta->target_component_ofs];
 }
 
 Sender& MavsdkImpl::sender()
