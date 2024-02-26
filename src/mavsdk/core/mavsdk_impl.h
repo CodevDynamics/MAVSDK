@@ -109,7 +109,6 @@ public:
     Time time{};
     TimeoutHandler timeout_handler;
     CallEveryHandler call_every_handler;
-    Ping ping;
 
     void call_user_callback_located(
         const std::string& filename, int linenumber, const std::function<void()>& func);
@@ -119,6 +118,7 @@ public:
     double timeout_s() const { return _timeout_s; };
 
     MavlinkMessageHandler mavlink_message_handler{};
+    Ping ping;
 
     ServerComponentImpl& default_server_component_impl();
 
