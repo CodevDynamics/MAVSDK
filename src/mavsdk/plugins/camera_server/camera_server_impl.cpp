@@ -962,6 +962,11 @@ CameraServerImpl::process_image_start_capture(const MavlinkCommandReceiver::Comm
                 command, MAV_RESULT::MAV_RESULT_TEMPORARILY_REJECTED);
     }
 
+    if(_is_image_capture_in_progress) {
+        return _server_component_impl->make_command_ack_message(
+                command, MAV_RESULT::MAV_RESULT_IN_PROGRESS);
+    }
+
     // single image capture
     if (total_images == 1) {
         if (seq_number <= _image_capture_count) {
@@ -972,7 +977,7 @@ CameraServerImpl::process_image_start_capture(const MavlinkCommandReceiver::Comm
         }
 
         _last_take_photo_command = command;
-
+        set_in_progress(true);
         _server_component_impl->call_user_callback(
             [command, seq_number, this]() {
                 std::future<void> fut = std::async(std::launch::async, [seq_number, this]() {
@@ -983,6 +988,7 @@ CameraServerImpl::process_image_start_capture(const MavlinkCommandReceiver::Comm
                         command, MAV_RESULT::MAV_RESULT_IN_PROGRESS);
                     _server_component_impl->send_command_ack(command_ack);
                 } while(fut.wait_for(std::chrono::milliseconds(250)) == std::future_status::timeout);
+                set_in_progress(false);
             });
 
         return std::nullopt;

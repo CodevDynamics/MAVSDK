@@ -239,6 +239,13 @@ bool CameraDefinition::parse_xml()
             new_parameter->options = std::get<1>(maybe_range_options);
             new_parameter->is_range = true;
             new_parameter->default_option = std::get<2>(maybe_range_options);
+        } else {
+            ParamValue default_value;
+            if(default_value.set_from_xml(type_map[param_name], default_str)) {
+                new_parameter->is_range = false;
+                new_parameter->default_option.name = default_str;
+                new_parameter->default_option.value = default_value;
+            }
         }
 
         _parameter_map[param_name] = new_parameter;
