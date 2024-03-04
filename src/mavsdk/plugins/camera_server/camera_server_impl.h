@@ -121,6 +121,7 @@ private:
     CallbackList<int32_t> _take_photo_callbacks{};
 
     MavlinkCommandReceiver::CommandLong _last_take_photo_command;
+    CameraServer::TakePhotoFeedback _last_take_photo_feedback{CameraServer::TakePhotoFeedback::Unknown};
 
     bool parse_version_string(const std::string& version_str);
     bool parse_version_string(const std::string& version_str, uint32_t& version);

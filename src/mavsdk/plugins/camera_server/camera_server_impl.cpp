@@ -424,29 +424,19 @@ CameraServer::Result CameraServerImpl::respond_take_photo(
         _image_capture_count = capture_info.index;
     }
 
-    switch (take_photo_feedback) {
+    _last_take_photo_feedback = take_photo_feedback;
+    switch (_last_take_photo_feedback) {
         default:
             // Fallthrough
         case CameraServer::TakePhotoFeedback::Unknown:
             return CameraServer::Result::Error;
         case CameraServer::TakePhotoFeedback::Ok: {
-            // Check for error above
-            auto command_ack = _server_component_impl->make_command_ack_message(
-                _last_take_photo_command, MAV_RESULT_ACCEPTED);
-            _server_component_impl->send_command_ack(command_ack);
-            // Only break and send the captured below.
             break;
         }
         case CameraServer::TakePhotoFeedback::Busy: {
-            auto command_ack = _server_component_impl->make_command_ack_message(
-                _last_take_photo_command, MAV_RESULT_TEMPORARILY_REJECTED);
-            _server_component_impl->send_command_ack(command_ack);
             return CameraServer::Result::Success;
         }
         case CameraServer::TakePhotoFeedback::Failed: {
-            auto command_ack = _server_component_impl->make_command_ack_message(
-                _last_take_photo_command, MAV_RESULT_TEMPORARILY_REJECTED);
-            _server_component_impl->send_command_ack(command_ack);
             return CameraServer::Result::Success;
         }
     }
@@ -988,6 +978,29 @@ CameraServerImpl::process_image_start_capture(const MavlinkCommandReceiver::Comm
                         command, MAV_RESULT::MAV_RESULT_IN_PROGRESS);
                     _server_component_impl->send_command_ack(command_ack);
                 } while(fut.wait_for(std::chrono::milliseconds(250)) == std::future_status::timeout);
+
+                switch (_last_take_photo_feedback) {
+                    default:
+                    case CameraServer::TakePhotoFeedback::Unknown:
+                    case CameraServer::TakePhotoFeedback::Ok: {
+                        auto command_ack = _server_component_impl->make_command_ack_message(
+                            _last_take_photo_command, MAV_RESULT_ACCEPTED);
+                        _server_component_impl->send_command_ack(command_ack);
+                        break;
+                    }
+                    case CameraServer::TakePhotoFeedback::Busy: {
+                        auto command_ack = _server_component_impl->make_command_ack_message(
+                            _last_take_photo_command, MAV_RESULT_TEMPORARILY_REJECTED);
+                        _server_component_impl->send_command_ack(command_ack);
+                        break;
+                    }
+                    case CameraServer::TakePhotoFeedback::Failed: {
+                        auto command_ack = _server_component_impl->make_command_ack_message(
+                            _last_take_photo_command, MAV_RESULT_TEMPORARILY_REJECTED);
+                        _server_component_impl->send_command_ack(command_ack);
+                        break;
+                    }
+                }
                 set_in_progress(false);
             });
 
