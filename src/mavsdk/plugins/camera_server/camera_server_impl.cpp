@@ -783,18 +783,15 @@ std::optional<mavlink_command_ack_t> CameraServerImpl::process_camera_capture_st
             command, MAV_RESULT::MAV_RESULT_ACCEPTED);
     }
 
-    uint8_t image_status{};
-
-    if (_is_image_capture_in_progress) {
-        image_status |= StatusFlags::IN_PROGRESS;
-    }
-
-    if (_is_image_capture_interval_set) {
-        image_status |= StatusFlags::INTERVAL_SET;
-    }
-
     _server_component_impl->call_user_callback(
-        [image_status, this]() {
+        [this]() {
+        uint8_t image_status{};
+        if (_is_image_capture_in_progress) {
+            image_status |= StatusFlags::IN_PROGRESS;
+        }
+        if (_is_image_capture_interval_set) {
+            image_status |= StatusFlags::INTERVAL_SET;
+        }
         uint8_t video_status = 0;
         uint32_t recording_time_ms = 0;
         float available_capacity = 0;
@@ -1061,6 +1058,12 @@ CameraServerImpl::process_video_start_capture(const MavlinkCommandReceiver::Comm
                 command, MAV_RESULT::MAV_RESULT_TEMPORARILY_REJECTED);
     }
 
+    if(_is_image_capture_in_progress) {
+        return _server_component_impl->make_command_ack_message(
+                command, MAV_RESULT::MAV_RESULT_IN_PROGRESS);
+    }
+
+    set_in_progress(true);
     _server_component_impl->call_user_callback(
         [command, stream_id, this]() {
             bool ok = true;
@@ -1076,6 +1079,7 @@ CameraServerImpl::process_video_start_capture(const MavlinkCommandReceiver::Comm
             auto command_ack = _server_component_impl->make_command_ack_message(
                     command, ok ? MAV_RESULT::MAV_RESULT_ACCEPTED : MAV_RESULT::MAV_RESULT_FAILED);
             _server_component_impl->send_command_ack(command_ack);
+            set_in_progress(false);
         });
 
     return std::nullopt;
@@ -1092,6 +1096,12 @@ CameraServerImpl::process_video_stop_capture(const MavlinkCommandReceiver::Comma
             command, MAV_RESULT::MAV_RESULT_UNSUPPORTED);
     }
 
+    if(_is_image_capture_in_progress) {
+        return _server_component_impl->make_command_ack_message(
+                command, MAV_RESULT::MAV_RESULT_IN_PROGRESS);
+    }
+
+    set_in_progress(true);
     _server_component_impl->call_user_callback(
         [command, stream_id, this]() {
             bool ok = false;
@@ -1107,6 +1117,7 @@ CameraServerImpl::process_video_stop_capture(const MavlinkCommandReceiver::Comma
             auto command_ack = _server_component_impl->make_command_ack_message(
                     command, ok ? MAV_RESULT::MAV_RESULT_ACCEPTED : MAV_RESULT::MAV_RESULT_FAILED);
             _server_component_impl->send_command_ack(command_ack);
+            set_in_progress(false);
         });
 
     return std::nullopt;
