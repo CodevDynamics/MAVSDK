@@ -17,14 +17,13 @@ target_sources(mavsdk
     call_every_handler.cpp
     connection.cpp
     connection_result.cpp
-    curl_wrapper.cpp
     crc32.cpp
     system.cpp
     system_impl.cpp
     flight_mode.cpp
+    math_conversions.cpp
     mavsdk.cpp
     mavsdk_impl.cpp
-    http_loader.cpp
     mavlink_channels.cpp
     mavlink_command_receiver.cpp
     mavlink_command_sender.cpp
@@ -62,15 +61,42 @@ target_sources(mavsdk
 cmake_policy(SET CMP0079 NEW)
 target_link_libraries(mavsdk
     PRIVATE
-    MAVLink::mavlink
-    CURL::libcurl
     Threads::Threads
 )
+
+if (NOT BUILD_WITHOUT_CURL)
+    target_sources(mavsdk
+        PRIVATE
+        curl_wrapper.cpp
+        http_loader.cpp
+    )
+
+    target_link_libraries(mavsdk
+        PRIVATE
+        CURL::libcurl
+    )
+
+    list(APPEND UNIT_TEST_SOURCES
+        # TODO: add this again
+        ${PROJECT_SOURCE_DIR}/mavsdk/core/curl_test.cpp
+        #${PROJECT_SOURCE_DIR}/mavsdk/core/http_loader_test.cpp
+    )
+else()
+    target_compile_definitions(mavsdk
+        PRIVATE
+        BUILD_WITHOUT_CURL=1
+    )
+endif()
 
 set_target_properties(mavsdk PROPERTIES
     VERSION ${MAVSDK_VERSION_STRING}
     SOVERSION ${MAVSDK_SOVERSION_STRING}
 )
+if (MSVC)
+    set_target_properties(mavsdk PROPERTIES
+        DEBUG_POSTFIX "d"
+    )
+endif()
 
 if (IOS)
     target_link_libraries(mavsdk
@@ -96,7 +122,7 @@ if(ANDROID)
 endif()
 
 if((BUILD_STATIC_MAVSDK_SERVER AND ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")) OR
-    (${CMAKE_HOST_SYSTEM_PROCESSOR} MATCHES "(armv6|armv7)"))
+    (${CMAKE_HOST_SYSTEM_PROCESSOR} MATCHES "(armv6|armv7|aarch64)"))
     target_link_libraries(mavsdk PRIVATE atomic)
 endif()
 
@@ -123,7 +149,10 @@ install(TARGETS mavsdk
     )
 
 file(GLOB_RECURSE HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/*.h)
+file(GLOB_RECURSE HEADERS_TPP ${CMAKE_CURRENT_SOURCE_DIR}/*.tpp)
+list(APPEND HEADERS ${HEADERS_TPP})
 install(FILES
+    include/mavsdk/autopilot.h
     include/mavsdk/connection_result.h
     include/mavsdk/deprecated.h
     include/mavsdk/handle.h
@@ -148,11 +177,9 @@ list(APPEND UNIT_TEST_SOURCES
     ${PROJECT_SOURCE_DIR}/mavsdk/core/callback_list_test.cpp
     ${PROJECT_SOURCE_DIR}/mavsdk/core/call_every_handler_test.cpp
     ${PROJECT_SOURCE_DIR}/mavsdk/core/cli_arg_test.cpp
-    ${PROJECT_SOURCE_DIR}/mavsdk/core/curl_test.cpp
     ${PROJECT_SOURCE_DIR}/mavsdk/core/locked_queue_test.cpp
     ${PROJECT_SOURCE_DIR}/mavsdk/core/geometry_test.cpp
-    # TODO: add this again
-    #${PROJECT_SOURCE_DIR}/mavsdk/core/http_loader_test.cpp
+    ${PROJECT_SOURCE_DIR}/mavsdk/core/math_conversions_test.cpp
     ${PROJECT_SOURCE_DIR}/mavsdk/core/mavsdk_math_test.cpp
     ${PROJECT_SOURCE_DIR}/mavsdk/core/mavsdk_test.cpp
     ${PROJECT_SOURCE_DIR}/mavsdk/core/mavsdk_time_test.cpp

@@ -52,18 +52,6 @@ public:
     static constexpr double DEFAULT_TIMEOUT_S = 0.5;
 
     /**
-     * @brief Constructor.
-     */
-    Mavsdk();
-
-    /**
-     * @brief Destructor.
-     *
-     * Disconnects all connected vehicles and releases all resources.
-     */
-    ~Mavsdk();
-
-    /**
      * @brief Returns the version of MAVSDK.
      *
      * Note, you're not supposed to request the version too many times.
@@ -224,22 +212,22 @@ public:
     std::optional<std::shared_ptr<System>> first_autopilot(double timeout_s) const;
 
     /**
+     * @brief ComponentType of configurations, used for automatic ID setting
+     */
+    enum class ComponentType {
+        Autopilot, /**< @brief SDK is used as an autopilot. */
+        GroundStation, /**< @brief SDK is used as a ground station. */
+        CompanionComputer, /**< @brief SDK is used as a companion computer on board the MAV. */
+        Camera, /** < @brief SDK is used as a camera. */
+        Custom /**< @brief the SDK is used in a custom configuration, no automatic ID will be
+                  provided */
+    };
+
+    /**
      * @brief Possible configurations.
      */
     class Configuration {
     public:
-        /**
-         * @brief UsageTypes of configurations, used for automatic ID setting
-         */
-        enum class UsageType {
-            Autopilot, /**< @brief SDK is used as an autopilot. */
-            GroundStation, /**< @brief SDK is used as a ground station. */
-            CompanionComputer, /**< @brief SDK is used as a companion computer on board the MAV. */
-            Camera, /** < @brief SDK is used as a camera. */
-            Custom /**< @brief the SDK is used in a custom configuration, no automatic ID will be
-                      provided */
-        };
-
         /**
          * @brief Create new Configuration via manually configured
          * system and component ID.
@@ -250,11 +238,11 @@ public:
         explicit Configuration(
             uint8_t system_id, uint8_t component_id, bool always_send_heartbeats);
         /**
-         * @brief Create new Configuration using a usage type.
+         * @brief Create new Configuration using a component type.
          * In this mode, the system and component ID will be automatically chosen.
-         * @param usage_type the usage type, used for automatically choosing ids.
+         * @param component_type the component type, used for automatically choosing ids.
          */
-        explicit Configuration(UsageType usage_type);
+        explicit Configuration(ComponentType component_type);
 
         Configuration() = delete;
         ~Configuration() = default;
@@ -294,23 +282,48 @@ public:
         void set_always_send_heartbeats(bool always_send_heartbeats);
         void set_disable_send_heartbeats(bool disable_send_heartbeats);
 
-        /** @brief Usage type of this configuration, used for automatic ID set */
-        UsageType get_usage_type() const;
+        /** @brief Component type of this configuration, used for automatic ID set */
+        ComponentType get_component_type() const;
 
         /**
-         * @brief Set the usage type of this configuration.
+         * @brief Set the component type of this configuration.
          */
-        void set_usage_type(UsageType usage_type);
+        void set_component_type(ComponentType component_type);
 
     private:
         uint8_t _system_id;
         uint8_t _component_id;
         bool _always_send_heartbeats;
         bool _disable_send_heartbeats;
-        UsageType _usage_type;
+        ComponentType _component_type;
 
-        static Mavsdk::Configuration::UsageType usage_type_for_component(uint8_t component_id);
+        static Mavsdk::ComponentType component_type_for_component_id(uint8_t component_id);
     };
+
+    /**
+     * @brief Default constructor without configuration, no longer recommended.
+     *
+     * @note This has been removed because MAVSDK used to identify itself as a
+     *       ground station by default which isn't always the safest choice.
+     *       For instance, when MAVSDK is used on a companion computer (set as
+     *       a ground station) it means that the appropriate failsafe doesn't
+     *       trigger.
+     */
+    Mavsdk() = delete;
+
+    /**
+     * @brief Constructor with configuration.
+     *
+     * @param configuration Configuration to use in MAVSDK instance.
+     */
+    Mavsdk(Configuration configuration);
+
+    /**
+     * @brief Destructor.
+     *
+     * Disconnects all connected vehicles and releases all resources.
+     */
+    ~Mavsdk();
 
     /**
      * @brief Set `Configuration` of SDK.
@@ -332,15 +345,6 @@ public:
      * need to be increased to prevent timeouts.
      */
     void set_timeout_s(double timeout_s);
-
-    /**
-     * @brief Set system status of this MAVLink entity.
-     *
-     * The default system status is MAV_STATE_UNINIT.
-     *
-     * @param system_status system status.
-     */
-    void set_system_status(uint8_t system_status);
 
     /**
      * @brief Callback type discover and timeout notifications.
@@ -371,29 +375,26 @@ public:
     void unsubscribe_on_new_system(NewSystemHandle handle);
 
     /**
-     * @brief High level type of a server component.
+     * @brief Get server component with default type of Mavsdk instance.
+     *
+     * @return A valid shared pointer to a server component if it was successful, an empty pointer
+     * otherwise.
      */
-    enum class ServerComponentType {
-        Autopilot, /**< @brief The component identifies as an autopilot. */
-        GroundStation, /**< @brief The component identifies as a ground station. */
-        CompanionComputer, /**< @brief The component identifies as a companion computer on board the
-                              system. */
-        Camera, /** < @brief The component identifies as a camera. */
-    };
+    std::shared_ptr<ServerComponent> server_component(unsigned instance = 0);
 
     /**
      * @brief Get server component by a high level type.
      *
      * This represents a server component of the MAVSDK instance.
      *
-     * @param server_component_type The high level type of the component.
+     * @param component_type The high level type of the component.
      * @param instance The instance of the component if there are multiple, starting at 0.
      *
      * @return A valid shared pointer to a server component if it was successful, an empty pointer
      * otherwise.
      */
     std::shared_ptr<ServerComponent>
-    server_component_by_type(ServerComponentType server_component_type, unsigned instance = 0);
+    server_component_by_type(ComponentType component_type, unsigned instance = 0);
 
     /**
      * @brief Get server component by the low MAVLink component ID.

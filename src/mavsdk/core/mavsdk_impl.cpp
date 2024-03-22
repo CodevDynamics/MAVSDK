@@ -19,7 +19,10 @@ namespace mavsdk {
 
 template class CallbackList<>;
 
-MavsdkImpl::MavsdkImpl() : timeout_handler(time), call_every_handler(time), ping(*this)
+MavsdkImpl::MavsdkImpl(const Mavsdk::Configuration& configuration) :
+    timeout_handler(time),
+    call_every_handler(time),
+    ping(*this)
 {
     LogInfo() << "MAVSDK version: " << mavsdk_version;
 
@@ -36,6 +39,8 @@ MavsdkImpl::MavsdkImpl() : timeout_handler(time), call_every_handler(time), ping
             _message_logging_on = true;
         }
     }
+
+    set_configuration(configuration);
 
     _work_thread = new std::thread(&MavsdkImpl::work_thread, this);
 
@@ -165,11 +170,27 @@ std::optional<std::shared_ptr<System>> MavsdkImpl::first_autopilot(double timeou
     }
 }
 
-std::shared_ptr<ServerComponent> MavsdkImpl::server_component_by_type(
-    Mavsdk::ServerComponentType server_component_type, unsigned instance)
+std::shared_ptr<ServerComponent> MavsdkImpl::server_component(unsigned instance)
+{
+    auto component_type = _configuration.get_component_type();
+    switch (component_type) {
+        case Mavsdk::ComponentType::Autopilot:
+        case Mavsdk::ComponentType::GroundStation:
+        case Mavsdk::ComponentType::CompanionComputer:
+        case Mavsdk::ComponentType::Camera:
+        case Mavsdk::ComponentType::Custom:
+            return server_component_by_type(component_type, instance);
+        default:
+            LogErr() << "Unknown component type";
+            return {};
+    }
+}
+
+std::shared_ptr<ServerComponent>
+MavsdkImpl::server_component_by_type(Mavsdk::ComponentType server_component_type, unsigned instance)
 {
     switch (server_component_type) {
-        case Mavsdk::ServerComponentType::Autopilot:
+        case Mavsdk::ComponentType::Autopilot:
             if (instance == 0) {
                 return server_component_by_id(MAV_COMP_ID_AUTOPILOT1);
             } else {
@@ -177,7 +198,7 @@ std::shared_ptr<ServerComponent> MavsdkImpl::server_component_by_type(
                 return {};
             }
 
-        case Mavsdk::ServerComponentType::GroundStation:
+        case Mavsdk::ComponentType::GroundStation:
             if (instance == 0) {
                 return server_component_by_id(MAV_COMP_ID_MISSIONPLANNER);
             } else {
@@ -185,7 +206,7 @@ std::shared_ptr<ServerComponent> MavsdkImpl::server_component_by_type(
                 return {};
             }
 
-        case Mavsdk::ServerComponentType::CompanionComputer:
+        case Mavsdk::ComponentType::CompanionComputer:
             if (instance == 0) {
                 return server_component_by_id(MAV_COMP_ID_ONBOARD_COMPUTER);
             } else if (instance == 1) {
@@ -199,7 +220,7 @@ std::shared_ptr<ServerComponent> MavsdkImpl::server_component_by_type(
                 return {};
             }
 
-        case Mavsdk::ServerComponentType::Camera:
+        case Mavsdk::ComponentType::Camera:
             if (instance == 0) {
                 return server_component_by_id(MAV_COMP_ID_CAMERA);
             } else if (instance == 1) {
@@ -272,7 +293,7 @@ void MavsdkImpl::forward_message(mavlink_message_t& message, Connection* connect
         for (auto& entry : _connections) {
             // Check whether the connection is not the one from which we received the message.
             // And also check if the connection was set to forward messages.
-            if(_configuration.get_usage_type() == Mavsdk::Configuration::UsageType::GroundStation) {
+            if(_configuration.get_component_type() == Mavsdk::ComponentType::GroundStation) {
                 if (entry.connection.get() == connection ||
                     !entry.connection->should_forward_messages()) {
                     continue;
@@ -349,7 +370,7 @@ void MavsdkImpl::receive_message(mavlink_message_t& message, Connection* connect
     // mavlink instances which leads to existing implementations (including
     // examples and integration tests) to connect to QGroundControl by accident
     // instead of PX4 because the check `has_autopilot()` is not used.
-    if (_configuration.get_usage_type() == Mavsdk::Configuration::UsageType::GroundStation &&
+    if (_configuration.get_component_type() == Mavsdk::ComponentType::GroundStation &&
         message.sysid == 255 && message.compid == MAV_COMP_ID_MISSIONPLANNER) {
         if (_message_logging_on) {
             LogDebug() << "Ignoring messages from QGC as we are also a ground station";
@@ -398,10 +419,11 @@ void MavsdkImpl::receive_message(mavlink_message_t& message, Connection* connect
         return;
     }
 
+    mavlink_message_handler.process_message(message);
+
     for (auto& system : _systems) {
         if (system.first == message.sysid) {
-            // system.second->system_impl()->process_mavlink_message(message);
-            mavlink_message_handler.process_message(message);
+            system.second->system_impl()->process_mavlink_message(message);
             break;
         }
     }
@@ -411,7 +433,9 @@ bool MavsdkImpl::send_message(mavlink_message_t& message)
 {
     if (_message_logging_on) {
         LogDebug() << "Sending message " << message.msgid << " from "
-                   << static_cast<int>(message.sysid) << "/" << static_cast<int>(message.compid);
+                   << static_cast<int>(message.sysid) << "/" << static_cast<int>(message.compid)
+                   << " to " << static_cast<int>(get_target_system_id(message)) << "/"
+                   << static_cast<int>(get_target_component_id(message));
     }
 
     // This is a low level interface where outgoing messages can be tampered
@@ -711,20 +735,20 @@ Autopilot MavsdkImpl::autopilot() const
 // FIXME: this should be per component
 uint8_t MavsdkImpl::get_mav_type() const
 {
-    switch (_configuration.get_usage_type()) {
-        case Mavsdk::Configuration::UsageType::Autopilot:
+    switch (_configuration.get_component_type()) {
+        case Mavsdk::ComponentType::Autopilot:
             return MAV_TYPE_GENERIC;
 
-        case Mavsdk::Configuration::UsageType::GroundStation:
+        case Mavsdk::ComponentType::GroundStation:
             return MAV_TYPE_GCS;
 
-        case Mavsdk::Configuration::UsageType::CompanionComputer:
+        case Mavsdk::ComponentType::CompanionComputer:
             return MAV_TYPE_ONBOARD_CONTROLLER;
 
-        case Mavsdk::Configuration::UsageType::Camera:
+        case Mavsdk::ComponentType::Camera:
             return MAV_TYPE_CAMERA;
 
-        case Mavsdk::Configuration::UsageType::Custom:
+        case Mavsdk::ComponentType::Custom:
             return MAV_TYPE_GENERIC;
 
         default:
@@ -813,7 +837,7 @@ void MavsdkImpl::work_thread()
         }
 
         if (time.elapsed_since_s(last_ping_time) >= PING_INTERVAL_S &&
-            _configuration.get_usage_type() == Mavsdk::Configuration::UsageType::GroundStation) {
+            _configuration.get_component_type() == Mavsdk::ComponentType::GroundStation) {
             if (is_any_system_connected()) {
                 ping.run_once();
             }

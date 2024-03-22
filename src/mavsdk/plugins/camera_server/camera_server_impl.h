@@ -8,94 +8,75 @@ namespace mavsdk {
 
 class CameraServerImpl : public ServerPluginImplBase {
 public:
-    using VideoStatusCallback = std::function<void(uint8_t&,uint32_t&,float&)>;
-    using CameraSettingsCallback = std::function<void(uint8_t&,float&,float&)>;
-    using VideoHandle = Handle<int32_t,bool&>;
-    using VideoCallback = std::function<void(int32_t,bool&)>;
-    using ZoomFocusHandle = Handle<uint8_t,float>;
-    using ZoomFocusCallback = std::function<void(uint8_t,float)>;
-    using ModeHandle = Handle<uint8_t>;
-    using ModeCallback = std::function<void(uint8_t)>;
-    using ResetHandle = Handle<bool>;
-    using ResetCallback = std::function<void(bool)>;
-    using FormatHandle = Handle<uint8_t,bool&,bool>;
-    using FormatCallback = std::function<void(uint8_t,bool&,bool)>;
-    using ParamChangedHandle = Handle<std::string,ParamValue>;
-    using ParamChangedCallback = std::function<void(std::string,ParamValue)>;
-    struct StorageInformation {
-        uint8_t storage_count;
-        uint8_t status;
-        uint8_t type;
-        uint8_t storage_usage;
-        float total_capacity;
-        float used_capacity;
-        float available_capacity;
-        float read_speed;
-        float write_speed;
-        std::string name;
-    };
-
-    CameraServer::Result set_storage_information(CameraServerImpl::StorageInformation information);
-    void register_video_status_callback(const CameraServerImpl::VideoStatusCallback& callback);
-    void register_camera_settings_callback(const CameraServerImpl::CameraSettingsCallback& callback);
-    CameraServerImpl::VideoHandle subscribe_video(const CameraServerImpl::VideoCallback& callback);
-    void unsubscribe_video(CameraServerImpl::VideoHandle handle);
-    CameraServerImpl::ZoomFocusHandle subscribe_zoom(const CameraServerImpl::ZoomFocusCallback& callback);
-    void unsubscribe_zoom(CameraServerImpl::ZoomFocusHandle handle);
-    CameraServerImpl::ZoomFocusHandle subscribe_focus(const CameraServerImpl::ZoomFocusCallback& callback);
-    void unsubscribe_focus(CameraServerImpl::ZoomFocusHandle handle);
-    CameraServerImpl::ModeHandle subscribe_mode(const CameraServerImpl::ModeCallback& callback);
-    void unsubscribe_mode(CameraServerImpl::ModeHandle handle);
-    CameraServerImpl::ResetHandle subscribe_reset(const CameraServerImpl::ResetCallback& callback);
-    void unsubscribe_reset(CameraServerImpl::ResetHandle handle);
-    CameraServerImpl::FormatHandle subscribe_format(const CameraServerImpl::FormatCallback& callback);
-    void unsubscribe_format(CameraServerImpl::FormatHandle handle);
-    CameraServerImpl::ParamChangedHandle subscribe_param_changed(const CameraServerImpl::ParamChangedCallback& callback);
-    void unsubscribe_param_changed(CameraServerImpl::ParamChangedHandle handle);
-
-    void push_stream_info(const mavlink_video_stream_information_t& info);
-    void clean_stream_info();
-    void provide_server_params(std::unordered_map<std::string, ParamValue> params, bool report = false);
-    bool retrieve_server_param(const std::string& name, ParamValue& value);
-
-    void call_user_callback_located(const std::string& filename, int linenumber, const std::function<void()>& func);
-
     explicit CameraServerImpl(std::shared_ptr<ServerComponent> server_component);
     ~CameraServerImpl() override;
 
     void init() override;
     void deinit() override;
 
-    void update_camera_capture_status_idle(float available_capacity, int32_t image_capture_count);
-    bool update_camera_settings_status();
-
     CameraServer::Result set_information(CameraServer::Information information);
+    CameraServer::Result set_video_streaming(CameraServer::VideoStreaming video_streaming);
     CameraServer::Result set_in_progress(bool in_progress);
 
     CameraServer::TakePhotoHandle
     subscribe_take_photo(const CameraServer::TakePhotoCallback& callback);
     void unsubscribe_take_photo(CameraServer::TakePhotoHandle handle);
-
     CameraServer::Result respond_take_photo(
-        CameraServer::TakePhotoFeedback take_photo_feedback,
-        CameraServer::CaptureInfo capture_info);
+        CameraServer::CameraFeedback take_photo_feedback, CameraServer::CaptureInfo capture_info);
+
+    CameraServer::StartVideoHandle
+    subscribe_start_video(const CameraServer::StartVideoCallback& callback);
+    void unsubscribe_start_video(CameraServer::StartVideoHandle handle);
+    CameraServer::Result respond_start_video(CameraServer::CameraFeedback start_video_feedback);
+
+    CameraServer::StopVideoHandle
+    subscribe_stop_video(const CameraServer::StopVideoCallback& callback);
+    void unsubscribe_stop_video(CameraServer::StopVideoHandle handle);
+    CameraServer::Result respond_stop_video(CameraServer::CameraFeedback stop_video_feedback);
+
+    CameraServer::StartVideoStreamingHandle
+    subscribe_start_video_streaming(const CameraServer::StartVideoStreamingCallback& callback);
+    void unsubscribe_start_video_streaming(CameraServer::StartVideoStreamingHandle handle);
+    CameraServer::Result
+    respond_start_video_streaming(CameraServer::CameraFeedback start_video_streaming_feedback);
+
+    CameraServer::StopVideoStreamingHandle
+    subscribe_stop_video_streaming(const CameraServer::StopVideoStreamingCallback& callback);
+    void unsubscribe_stop_video_streaming(CameraServer::StopVideoStreamingHandle handle);
+    CameraServer::Result
+    respond_stop_video_streaming(CameraServer::CameraFeedback stop_video_streaming_feedback);
+
+    CameraServer::SetModeHandle subscribe_set_mode(const CameraServer::SetModeCallback& callback);
+    void unsubscribe_set_mode(CameraServer::SetModeHandle handle);
+    CameraServer::Result respond_set_mode(CameraServer::CameraFeedback set_mode_feedback);
+
+    CameraServer::StorageInformationHandle
+    subscribe_storage_information(const CameraServer::StorageInformationCallback& callback);
+    void unsubscribe_storage_information(CameraServer::StorageInformationHandle handle);
+    CameraServer::Result respond_storage_information(
+        CameraServer::CameraFeedback storage_information_feedback,
+        CameraServer::StorageInformation storage_information);
+
+    CameraServer::CaptureStatusHandle
+    subscribe_capture_status(const CameraServer::CaptureStatusCallback& callback);
+    void unsubscribe_capture_status(CameraServer::CaptureStatusHandle handle);
+    CameraServer::Result respond_capture_status(
+        CameraServer::CameraFeedback capture_status_feedback,
+        CameraServer::CaptureStatus capture_status);
+
+    CameraServer::FormatStorageHandle
+    subscribe_format_storage(const CameraServer::FormatStorageCallback& callback);
+    void unsubscribe_format_storage(CameraServer::FormatStorageHandle handle);
+    CameraServer::Result
+    respond_format_storage(CameraServer::CameraFeedback format_storage_feedback);
+
+    CameraServer::ResetSettingsHandle
+    subscribe_reset_settings(const CameraServer::ResetSettingsCallback& callback);
+    void unsubscribe_reset_settings(CameraServer::ResetSettingsHandle handle);
+    CameraServer::Result
+    respond_reset_settings(CameraServer::CameraFeedback reset_settings_feedback);
 
 private:
-    bool _is_storage_information_set{};
-    CameraServerImpl::StorageInformation _storage_information{};
-    CameraServerImpl::VideoStatusCallback _video_status_callback{nullptr};
-    CameraServerImpl::CameraSettingsCallback _camera_settings_callback{nullptr};
-    CallbackList<int32_t,bool&> _video_callbacks{};
-    CallbackList<uint8_t,float> _focus_callbacks{};
-    CallbackList<uint8_t,float> _zoom_callbacks{};
-    CallbackList<uint8_t> _mode_callbacks{};
-    CallbackList<bool> _reset_callbacks{};
-    CallbackList<uint8_t,bool&,bool> _format_callbacks{};
-    CallbackList<std::string,ParamValue> _param_changed_callbacks{};
-
-    std::mutex _stream_info_mutex{};
-    std::vector<mavlink_video_stream_information_t> _stream_info;
-
     enum StatusFlags {
         IN_PROGRESS = 1 << 0,
         INTERVAL_SET = 1 << 1,
@@ -109,6 +90,10 @@ private:
 
     bool _is_information_set{};
     CameraServer::Information _information{};
+    bool _is_video_streaming_set{};
+    CameraServer::VideoStreaming _video_streaming{};
+
+    CameraServer::CaptureStatus _capture_status{};
 
     // CAMERA_CAPTURE_STATUS fields
     // TODO: how do we keep this info in sync between plugin instances?
@@ -119,9 +104,28 @@ private:
     int32_t _image_capture_count{};
 
     CallbackList<int32_t> _take_photo_callbacks{};
+    CallbackList<int32_t> _start_video_callbacks{};
+    CallbackList<int32_t> _stop_video_callbacks{};
+    CallbackList<int32_t> _start_video_streaming_callbacks{};
+    CallbackList<int32_t> _stop_video_streaming_callbacks{};
+    CallbackList<CameraServer::Mode> _set_mode_callbacks{};
+    CallbackList<int32_t> _storage_information_callbacks{};
+    CallbackList<int32_t> _capture_status_callbacks{};
+    CallbackList<int32_t> _format_storage_callbacks{};
+    CallbackList<int32_t> _reset_settings_callbacks{};
 
     MavlinkCommandReceiver::CommandLong _last_take_photo_command;
-    CameraServer::TakePhotoFeedback _last_take_photo_feedback{CameraServer::TakePhotoFeedback::Unknown};
+    MavlinkCommandReceiver::CommandLong _last_start_video_command;
+    MavlinkCommandReceiver::CommandLong _last_stop_video_command;
+    MavlinkCommandReceiver::CommandLong _last_start_video_streaming_command;
+    MavlinkCommandReceiver::CommandLong _last_stop_video_streaming_command;
+    MavlinkCommandReceiver::CommandLong _last_set_mode_command;
+    MavlinkCommandReceiver::CommandLong _last_storage_information_command;
+    MavlinkCommandReceiver::CommandLong _last_capture_status_command;
+    MavlinkCommandReceiver::CommandLong _last_format_storage_command;
+    MavlinkCommandReceiver::CommandLong _last_reset_settings_command;
+
+    uint8_t _last_storage_id;
 
     bool parse_version_string(const std::string& version_str);
     bool parse_version_string(const std::string& version_str, uint32_t& version);
@@ -166,8 +170,8 @@ private:
     process_video_stream_information_request(const MavlinkCommandReceiver::CommandLong& command);
     std::optional<mavlink_command_ack_t>
     process_video_stream_status_request(const MavlinkCommandReceiver::CommandLong& command);
-    void
-    process_param_changed(std::string name);
+
+    void send_capture_status();
 };
 
 } // namespace mavsdk

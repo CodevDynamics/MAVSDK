@@ -721,7 +721,8 @@ bool test_device_information(MavlinkPassthrough& mavlink_passthrough, AttitudeDa
                 });
 
             // We only need it once.
-            mavlink_passthrough.unsubscribe_message(handle);
+            mavlink_passthrough.unsubscribe_message(
+                MAVLINK_MSG_ID_GIMBAL_DEVICE_INFORMATION, handle);
             prom.set_value();
         });
 
@@ -795,7 +796,9 @@ void usage(const std::string& bin_name)
 
 int main(int argc, char** argv)
 {
-    Mavsdk mavsdk;
+    Mavsdk::Configuration config(Mavsdk::ComponentType::Autopilot);
+    config.set_system_id(own_sysid);
+    Mavsdk mavsdk{config};
     std::string connection_url;
     ConnectionResult connection_result;
 
@@ -814,10 +817,6 @@ int main(int argc, char** argv)
         std::cout << "-> connection failed: " << connection_result << '\n';
         return 1;
     }
-
-    Mavsdk::Configuration config(Mavsdk::Configuration::UsageType::Autopilot);
-    config.set_system_id(own_sysid);
-    mavsdk.set_configuration(config);
 
     {
         std::promise<void> prom;

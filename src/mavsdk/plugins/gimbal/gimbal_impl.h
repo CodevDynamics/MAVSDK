@@ -20,6 +20,10 @@ public:
     void enable() override;
     void disable() override;
 
+    Gimbal::Result set_angles(float roll_deg, float pitch_deg, float yaw_deg);
+    void set_angles_async(
+        float roll_deg, float pitch_deg, float yaw_deg, Gimbal::ResultCallback callback);
+
     Gimbal::Result set_pitch_and_yaw(float pitch_deg, float yaw_deg);
     void set_pitch_and_yaw_async(float pitch_deg, float yaw_deg, Gimbal::ResultCallback callback);
 
@@ -48,6 +52,10 @@ public:
     Gimbal::ControlHandle subscribe_control(const Gimbal::ControlCallback& callback);
     void unsubscribe_control(Gimbal::ControlHandle handle);
 
+    Gimbal::AttitudeHandle subscribe_attitude(const Gimbal::AttitudeCallback& callback);
+    void unsubscribe_attitude(Gimbal::AttitudeHandle handle);
+    Gimbal::Attitude attitude();
+
     static Gimbal::Result
     gimbal_result_from_command_result(MavlinkCommandSender::Result command_result);
 
@@ -70,6 +78,7 @@ private:
 
     std::mutex _mutex{};
     CallbackList<Gimbal::ControlStatus> _control_subscriptions{};
+    CallbackList<Gimbal::Attitude> _attitude_subscriptions{};
 };
 
 } // namespace mavsdk

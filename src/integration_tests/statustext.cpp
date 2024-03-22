@@ -15,14 +15,10 @@ static const auto type = ServerUtility::StatusTextType::Info;
 
 TEST(StatusTextTest, TestServer)
 {
-    Mavsdk mavsdk_gcs;
-    Mavsdk::Configuration config_gcs(Mavsdk::Configuration::UsageType::GroundStation);
-    mavsdk_gcs.set_configuration(config_gcs);
+    Mavsdk mavsdk_gcs{Mavsdk::Configuration{Mavsdk::ComponentType::GroundStation}};
     ASSERT_EQ(mavsdk_gcs.add_udp_connection(24550), ConnectionResult::Success);
 
-    Mavsdk mavsdk_onboard;
-    Mavsdk::Configuration config_onboard(Mavsdk::Configuration::UsageType::CompanionComputer);
-    mavsdk_onboard.set_configuration(config_onboard);
+    Mavsdk mavsdk_onboard{Mavsdk::Configuration{Mavsdk::ComponentType::CompanionComputer}};
     ASSERT_EQ(mavsdk_onboard.setup_udp_remote("127.0.0.1", 24550), ConnectionResult::Success);
 
     // Let the two connect to each other.

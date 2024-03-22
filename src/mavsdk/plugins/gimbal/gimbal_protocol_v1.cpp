@@ -13,9 +13,8 @@ GimbalProtocolV1::~GimbalProtocolV1()
     _system_impl.remove_call_every(_control_cookie);
 }
 
-Gimbal::Result GimbalProtocolV1::set_pitch_and_yaw(float pitch_deg, float yaw_deg)
+Gimbal::Result GimbalProtocolV1::set_angles(float roll_deg, float pitch_deg, float yaw_deg)
 {
-    const float roll_deg = 0.0f;
     MavlinkCommandSender::CommandLong command{};
 
     command.command = MAV_CMD_DO_MOUNT_CONTROL;
@@ -28,10 +27,9 @@ Gimbal::Result GimbalProtocolV1::set_pitch_and_yaw(float pitch_deg, float yaw_de
     return GimbalImpl::gimbal_result_from_command_result(_system_impl.send_command(command));
 }
 
-void GimbalProtocolV1::set_pitch_and_yaw_async(
-    float pitch_deg, float yaw_deg, Gimbal::ResultCallback callback)
+void GimbalProtocolV1::set_angles_async(
+    float roll_deg, float pitch_deg, float yaw_deg, Gimbal::ResultCallback callback)
 {
-    const float roll_deg = 0.0f;
     MavlinkCommandSender::CommandLong command{};
 
     command.command = MAV_CMD_DO_MOUNT_CONTROL;
@@ -46,6 +44,17 @@ void GimbalProtocolV1::set_pitch_and_yaw_async(
             UNUSED(progress);
             GimbalImpl::receive_command_result(command_result, callback);
         });
+}
+
+Gimbal::Result GimbalProtocolV1::set_pitch_and_yaw(float pitch_deg, float yaw_deg)
+{
+    return set_angles(0.0f, pitch_deg, yaw_deg);
+}
+
+void GimbalProtocolV1::set_pitch_and_yaw_async(
+    float pitch_deg, float yaw_deg, Gimbal::ResultCallback callback)
+{
+    set_angles_async(0.0f, pitch_deg, yaw_deg, callback);
 }
 
 Gimbal::Result
@@ -214,6 +223,27 @@ void GimbalProtocolV1::control_async(Gimbal::ControlCallback callback)
 
     } else {
         _control_callback = callback;
+    }
+}
+
+Gimbal::Attitude GimbalProtocolV1::attitude()
+{
+    return _current_attitude;
+}
+
+void GimbalProtocolV1::attitude_async(Gimbal::AttitudeCallback callback)
+{
+    if (_attitude_callback == nullptr && callback != nullptr) {
+        _attitude_callback = callback;
+        _system_impl.add_call_every(
+            [this]() { _attitude_callback(_current_attitude); }, 1.0, &_attitude_cookie);
+
+    } else if (_attitude_callback != nullptr && callback == nullptr) {
+        _attitude_callback = callback;
+        _system_impl.remove_call_every(_attitude_cookie);
+
+    } else {
+        _attitude_callback = callback;
     }
 }
 

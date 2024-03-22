@@ -13,6 +13,10 @@ public:
     GimbalProtocolV1(SystemImpl& system_impl);
     ~GimbalProtocolV1() override;
 
+    Gimbal::Result set_angles(float roll_deg, float pitch_deg, float yaw_deg) override;
+    void set_angles_async(
+        float roll_deg, float pitch_deg, float yaw_deg, Gimbal::ResultCallback callback) override;
+
     Gimbal::Result set_pitch_and_yaw(float pitch_deg, float yaw_deg) override;
     void set_pitch_and_yaw_async(
         float pitch_deg, float yaw_deg, Gimbal::ResultCallback callback) override;
@@ -45,13 +49,19 @@ public:
     Gimbal::ControlStatus control() override;
     void control_async(Gimbal::ControlCallback callback) override;
 
+    Gimbal::Attitude attitude() override;
+    void attitude_async(Gimbal::AttitudeCallback callback) override;
+
 private:
     static float to_float_gimbal_mode(const Gimbal::GimbalMode gimbal_mode);
 
     Gimbal::ControlStatus _current_control_status{Gimbal::ControlMode::None, 0, 0, 0, 0};
     Gimbal::ControlCallback _control_callback;
-
     void* _control_cookie{nullptr};
+
+    Gimbal::Attitude _current_attitude{};
+    Gimbal::AttitudeCallback _attitude_callback{};
+    void* _attitude_cookie{nullptr};
 };
 
 } // namespace mavsdk

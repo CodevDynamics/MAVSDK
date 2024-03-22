@@ -787,6 +787,7 @@ void TelemetryImpl::process_attitude(const mavlink_message_t& message)
     euler_angle.pitch_deg = to_deg_from_rad(attitude.pitch);
     euler_angle.yaw_deg = to_deg_from_rad(attitude.yaw);
     euler_angle.timestamp_us = static_cast<uint64_t>(attitude.time_boot_ms) * 1000;
+    set_attitude_euler(euler_angle);
 
     Telemetry::AngularVelocityBody angular_velocity_body;
     angular_velocity_body.roll_rad_s = attitude.rollspeed;
@@ -885,15 +886,21 @@ void TelemetryImpl::process_gimbal_device_attitude_status(const mavlink_message_
     mavlink_gimbal_device_attitude_status_t attitude_status;
     mavlink_msg_gimbal_device_attitude_status_decode(&message, &attitude_status);
 
-    Telemetry::Quaternion q;
-    q.w = attitude_status.q[0];
-    q.x = attitude_status.q[1];
-    q.y = attitude_status.q[2];
-    q.z = attitude_status.q[3];
+    Quaternion quaternion;
+    quaternion.w = attitude_status.q[0];
+    quaternion.x = attitude_status.q[1];
+    quaternion.y = attitude_status.q[2];
+    quaternion.z = attitude_status.q[3];
 
-    Telemetry::EulerAngle euler_angle = to_euler_angle_from_quaternion(q);
+    EulerAngle euler_angle = to_euler_angle_from_quaternion(quaternion);
 
-    set_camera_attitude_euler_angle(euler_angle);
+    auto telemetry_euler_angle = Telemetry::EulerAngle{};
+    telemetry_euler_angle.timestamp_us = attitude_status.time_boot_ms * 1000;
+    telemetry_euler_angle.roll_deg = euler_angle.roll_deg;
+    telemetry_euler_angle.pitch_deg = euler_angle.pitch_deg;
+    telemetry_euler_angle.yaw_deg = euler_angle.yaw_deg;
+
+    set_camera_attitude_euler_angle(telemetry_euler_angle);
 
     std::lock_guard<std::mutex> lock(_subscription_mutex);
     _camera_attitude_quaternion_subscriptions.queue(
@@ -1464,12 +1471,223 @@ void TelemetryImpl::process_distance_sensor(const mavlink_message_t& message)
         static_cast<float>(distance_sensor_msg.max_distance) * 1e-2f; // cm to m
     distance_sensor_struct.current_distance_m =
         static_cast<float>(distance_sensor_msg.current_distance) * 1e-2f; // cm to m
+    distance_sensor_struct.orientation = extractOrientation(distance_sensor_msg);
 
     set_distance_sensor(distance_sensor_struct);
 
     std::lock_guard<std::mutex> lock(_subscription_mutex);
     _distance_sensor_subscriptions.queue(
         distance_sensor(), [this](const auto& func) { _system_impl->call_user_callback(func); });
+}
+
+Telemetry::EulerAngle
+TelemetryImpl::extractOrientation(mavlink_distance_sensor_t distance_sensor_msg)
+{
+    MavSensorOrientation orientation =
+        static_cast<MavSensorOrientation>(distance_sensor_msg.orientation);
+
+    Telemetry::EulerAngle euler_angle;
+    euler_angle.roll_deg = 0;
+    euler_angle.pitch_deg = 0;
+    euler_angle.yaw_deg = 0;
+
+    switch (orientation) {
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_YAW_45: {
+            euler_angle.yaw_deg = 45;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_YAW_90: {
+            euler_angle.yaw_deg = 90;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_YAW_135: {
+            euler_angle.yaw_deg = 135;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_YAW_180: {
+            euler_angle.yaw_deg = 180;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_YAW_225: {
+            euler_angle.yaw_deg = 225;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_YAW_270: {
+            euler_angle.yaw_deg = 270;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_YAW_315: {
+            euler_angle.yaw_deg = 315;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_180: {
+            euler_angle.roll_deg = 180;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_180_YAW_45: {
+            euler_angle.roll_deg = 180;
+            euler_angle.yaw_deg = 45;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_180_YAW_90: {
+            euler_angle.roll_deg = 180;
+            euler_angle.yaw_deg = 90;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_180_YAW_135: {
+            euler_angle.roll_deg = 180;
+            euler_angle.yaw_deg = 135;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_PITCH_180: {
+            euler_angle.pitch_deg = 180;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_180_YAW_225: {
+            euler_angle.roll_deg = 180;
+            euler_angle.yaw_deg = 225;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_180_YAW_270: {
+            euler_angle.roll_deg = 180;
+            euler_angle.yaw_deg = 270;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_180_YAW_315: {
+            euler_angle.roll_deg = 180;
+            euler_angle.yaw_deg = 315;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_90: {
+            euler_angle.roll_deg = 90;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_90_YAW_45: {
+            euler_angle.roll_deg = 90;
+            euler_angle.yaw_deg = 45;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_90_YAW_90: {
+            euler_angle.roll_deg = 90;
+            euler_angle.yaw_deg = 90;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_90_YAW_135: {
+            euler_angle.roll_deg = 90;
+            euler_angle.yaw_deg = 135;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_270: {
+            euler_angle.roll_deg = 270;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_270_YAW_45: {
+            euler_angle.roll_deg = 270;
+            euler_angle.yaw_deg = 45;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_270_YAW_90: {
+            euler_angle.roll_deg = 270;
+            euler_angle.yaw_deg = 90;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_270_YAW_135: {
+            euler_angle.roll_deg = 270;
+            euler_angle.yaw_deg = 135;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_PITCH_90: {
+            euler_angle.pitch_deg = 90;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_PITCH_270: {
+            euler_angle.pitch_deg = 270;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_PITCH_180_YAW_90: {
+            euler_angle.pitch_deg = 180;
+            euler_angle.yaw_deg = 90;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_PITCH_180_YAW_270: {
+            euler_angle.pitch_deg = 180;
+            euler_angle.yaw_deg = 270;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_90_PITCH_90: {
+            euler_angle.roll_deg = 90;
+            euler_angle.pitch_deg = 90;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_180_PITCH_90: {
+            euler_angle.roll_deg = 180;
+            euler_angle.pitch_deg = 90;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_270_PITCH_90: {
+            euler_angle.roll_deg = 270;
+            euler_angle.pitch_deg = 90;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_90_PITCH_180: {
+            euler_angle.roll_deg = 90;
+            euler_angle.pitch_deg = 180;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_270_PITCH_180: {
+            euler_angle.roll_deg = 270;
+            euler_angle.pitch_deg = 180;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_90_PITCH_270: {
+            euler_angle.roll_deg = 90;
+            euler_angle.pitch_deg = 270;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_180_PITCH_270: {
+            euler_angle.roll_deg = 180;
+            euler_angle.pitch_deg = 270;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_270_PITCH_270: {
+            euler_angle.roll_deg = 270;
+            euler_angle.pitch_deg = 270;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_90_PITCH_180_YAW_90: {
+            euler_angle.roll_deg = 90;
+            euler_angle.pitch_deg = 180;
+            euler_angle.yaw_deg = 90;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_90_YAW_270: {
+            euler_angle.roll_deg = 90;
+            euler_angle.yaw_deg = 270;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_90_PITCH_68_YAW_293: {
+            euler_angle.roll_deg = 90;
+            euler_angle.pitch_deg = 68;
+            euler_angle.yaw_deg = 293;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_PITCH_315: {
+            euler_angle.pitch_deg = 315;
+            break;
+        }
+        case MavSensorOrientation::MAV_SENSOR_ROTATION_ROLL_90_PITCH_315: {
+            euler_angle.roll_deg = 90;
+            euler_angle.pitch_deg = 315;
+            break;
+        }
+        default: {
+            euler_angle.roll_deg = 0;
+            euler_angle.pitch_deg = 0;
+            euler_angle.yaw_deg = 0;
+        }
+    }
+
+    return euler_angle;
 }
 
 void TelemetryImpl::process_scaled_pressure(const mavlink_message_t& message)
@@ -1883,16 +2101,20 @@ Telemetry::FixedwingMetrics TelemetryImpl::fixedwing_metrics() const
 
 Telemetry::EulerAngle TelemetryImpl::attitude_euler() const
 {
-    std::lock_guard<std::mutex> lock(_attitude_quaternion_mutex);
-    Telemetry::EulerAngle euler = to_euler_angle_from_quaternion(_attitude_quaternion);
-
-    return euler;
+    std::lock_guard<std::mutex> lock(_attitude_euler_mutex);
+    return _attitude_euler;
 }
 
 void TelemetryImpl::set_attitude_quaternion(Telemetry::Quaternion quaternion)
 {
     std::lock_guard<std::mutex> lock(_attitude_quaternion_mutex);
     _attitude_quaternion = quaternion;
+}
+
+void TelemetryImpl::set_attitude_euler(Telemetry::EulerAngle euler)
+{
+    std::lock_guard<std::mutex> lock(_attitude_euler_mutex);
+    _attitude_euler = euler;
 }
 
 void TelemetryImpl::set_attitude_angular_velocity_body(
@@ -1917,9 +2139,22 @@ void TelemetryImpl::set_fixedwing_metrics(Telemetry::FixedwingMetrics fixedwing_
 Telemetry::Quaternion TelemetryImpl::camera_attitude_quaternion() const
 {
     std::lock_guard<std::mutex> lock(_camera_attitude_euler_angle_mutex);
-    Telemetry::Quaternion quaternion = to_quaternion_from_euler_angle(_camera_attitude_euler_angle);
 
-    return quaternion;
+    auto euler_angle = EulerAngle{};
+    euler_angle.roll_deg = _camera_attitude_euler_angle.roll_deg;
+    euler_angle.pitch_deg = _camera_attitude_euler_angle.pitch_deg;
+    euler_angle.yaw_deg = _camera_attitude_euler_angle.yaw_deg;
+
+    auto quaternion = to_quaternion_from_euler_angle(euler_angle);
+
+    auto telemetry_quaternion = Telemetry::Quaternion{};
+    telemetry_quaternion.w = quaternion.w;
+    telemetry_quaternion.x = quaternion.x;
+    telemetry_quaternion.y = quaternion.y;
+    telemetry_quaternion.z = quaternion.z;
+    telemetry_quaternion.timestamp_us = _camera_attitude_euler_angle.timestamp_us;
+
+    return telemetry_quaternion;
 }
 
 Telemetry::EulerAngle TelemetryImpl::camera_attitude_euler() const

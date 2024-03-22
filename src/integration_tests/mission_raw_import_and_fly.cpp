@@ -26,9 +26,9 @@ std::vector<MissionRaw::MissionItem> create_mission_raw();
 void test_mission_raw(
     mavsdk::MissionRaw& mission_raw, mavsdk::Action& action, mavsdk::Telemetry& telemetry);
 
-TEST_F(SitlTest, PX4MissionRawImportAndFly)
+TEST(SitlTest, PX4MissionRawImportAndFly)
 {
-    Mavsdk mavsdk;
+    Mavsdk mavsdk{Mavsdk::Configuration{Mavsdk::ComponentType::GroundStation}};
 
     ConnectionResult ret = mavsdk.add_udp_connection();
     ASSERT_EQ(ret, ConnectionResult::Success);
@@ -87,9 +87,9 @@ TEST_F(SitlTest, PX4MissionRawImportAndFly)
     }
 }
 
-TEST_F(SitlTest, APMissionRawImportAndFly)
+TEST(SitlTest, APMissionRawImportAndFly)
 {
-    Mavsdk mavsdk;
+    Mavsdk mavsdk{Mavsdk::Configuration{Mavsdk::ComponentType::GroundStation}};
 
     ConnectionResult ret = mavsdk.add_udp_connection();
     ASSERT_EQ(ret, ConnectionResult::Success);

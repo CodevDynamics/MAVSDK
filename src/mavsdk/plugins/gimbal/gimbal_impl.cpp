@@ -74,9 +74,29 @@ void GimbalImpl::process_gimbal_manager_information(const mavlink_message_t& mes
 
         _system_impl->unregister_timeout_handler(_protocol_cookie);
         _protocol_cookie = nullptr;
-        _gimbal_protocol.reset(new GimbalProtocolV2(
-            *_system_impl, gimbal_manager_information, message.sysid, message.compid));
+
+        // We need to schedule the construction for later because it wants
+        // to register more message subscriptions which blocks.
+        // TODO: we should fix this at the callback list level
+        _system_impl->call_user_callback([=]() {
+            _gimbal_protocol.reset(new GimbalProtocolV2(
+                *_system_impl, gimbal_manager_information, message.sysid, message.compid));
+        });
     }
+}
+
+Gimbal::Result GimbalImpl::set_angles(float roll_deg, float pitch_deg, float yaw_deg)
+{
+    wait_for_protocol();
+
+    return _gimbal_protocol->set_angles(roll_deg, pitch_deg, yaw_deg);
+}
+
+void GimbalImpl::set_angles_async(
+    float roll_deg, float pitch_deg, float yaw_deg, Gimbal::ResultCallback callback)
+{
+    wait_for_protocol_async(
+        [=]() { _gimbal_protocol->set_angles_async(roll_deg, pitch_deg, yaw_deg, callback); });
 }
 
 Gimbal::Result GimbalImpl::set_pitch_and_yaw(float pitch_deg, float yaw_deg)
@@ -192,6 +212,40 @@ void GimbalImpl::unsubscribe_control(Gimbal::ControlHandle handle)
     if (_control_subscriptions.empty()) {
         wait_for_protocol_async([=]() { _gimbal_protocol->control_async(nullptr); });
     }
+}
+
+Gimbal::AttitudeHandle GimbalImpl::subscribe_attitude(const Gimbal::AttitudeCallback& callback)
+{
+    std::lock_guard<std::mutex> lock(_mutex);
+
+    bool need_to_register_callback = _attitude_subscriptions.empty();
+    auto handle = _attitude_subscriptions.subscribe(callback);
+
+    if (need_to_register_callback) {
+        wait_for_protocol_async([=]() {
+            _gimbal_protocol->attitude_async([this](Gimbal::Attitude attitude) {
+                _attitude_subscriptions.queue(
+                    attitude, [this](const auto& func) { _system_impl->call_user_callback(func); });
+            });
+        });
+    }
+    return handle;
+}
+
+void GimbalImpl::unsubscribe_attitude(Gimbal::AttitudeHandle handle)
+{
+    std::lock_guard<std::mutex> lock(_mutex);
+    _attitude_subscriptions.unsubscribe(handle);
+
+    if (_attitude_subscriptions.empty()) {
+        wait_for_protocol_async([=]() { _gimbal_protocol->attitude_async(nullptr); });
+    }
+}
+
+Gimbal::Attitude GimbalImpl::attitude()
+{
+    wait_for_protocol();
+    return _gimbal_protocol->attitude();
 }
 
 void GimbalImpl::wait_for_protocol()
