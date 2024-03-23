@@ -83,9 +83,9 @@ public:
 
     bool empty()
     {
-        check_removals();
+        // check_removals();
 
-        std::lock_guard<std::mutex> lock(_mutex);
+        // std::lock_guard<std::mutex> lock(_mutex);
         return _list.empty();
     }
 

@@ -34,7 +34,8 @@ public:
     using ParamCustomChangedCallback = ParamChangedCallback<std::string>;
     void subscribe_param_custom_changed(
         const std::string& name, const ParamCustomChangedCallback& callback, const void* cookie);
-    void subscribe_param_changed(const ParamCustomChangedCallback& callback, const void* cookie);
+    using ParamAllChangedCallback = std::function<void(std::string, ParamValue)>;
+    void subscribe_param_changed(const ParamAllChangedCallback& callback, const void* cookie);
 
     void unsubscribe_all_params_changed(const void* cookie);
 
@@ -49,7 +50,7 @@ protected:
 
 private:
     using ParamChangedCallbacks = std::
-        variant<ParamFloatChangedCallback, ParamIntChangedCallback, ParamCustomChangedCallback>;
+        variant<ParamFloatChangedCallback, ParamIntChangedCallback, ParamCustomChangedCallback, ParamAllChangedCallback>;
     struct ParamChangedSubscription {
         const std::string param_name;
         const ParamChangedCallbacks callback;

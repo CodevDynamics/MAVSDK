@@ -55,9 +55,13 @@ void MavlinkParameterSubscription::subscribe_param_custom_changed(
 }
 
 void MavlinkParameterSubscription::subscribe_param_changed(
-    const ParamCustomChangedCallback& callback, const void* cookie)
+    const ParamAllChangedCallback& callback, const void* cookie)
 {
-    subscribe_param_changed<std::string>("", callback, cookie);
+    if (callback != nullptr) {
+        std::lock_guard<std::mutex> lock(_param_changed_subscriptions_mutex);
+        ParamChangedSubscription subscription{"", callback, cookie};
+        _param_changed_subscriptions.push_back(subscription);
+    }
 }
 
 void MavlinkParameterSubscription::find_and_call_subscriptions_value_changed(
@@ -66,7 +70,7 @@ void MavlinkParameterSubscription::find_and_call_subscriptions_value_changed(
     std::lock_guard<std::mutex> lock(_param_changed_subscriptions_mutex);
     for (const auto& subscription : _param_changed_subscriptions) {
         if(subscription.param_name.empty()) {
-            std::get<ParamCustomChangedCallback>(subscription.callback)(param_name);
+            std::get<ParamAllChangedCallback>(subscription.callback)(param_name, value);
             continue;
         } else if (subscription.param_name != param_name) {
             continue;
