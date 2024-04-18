@@ -43,6 +43,9 @@ public:
     [[nodiscard]] std::optional<float> get_float() const;
     [[nodiscard]] std::optional<std::string> get_custom() const;
 
+    [[nodiscard]] std::optional<int64_t> get_int64() const;
+    [[nodiscard]] std::optional<double> get_double() const;
+
     bool set_int(int new_value);
     void set_float(float new_value);
     void set_custom(const std::string& new_value);

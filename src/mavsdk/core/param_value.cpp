@@ -610,6 +610,30 @@ bool ParamValue::set_as_same_type(const std::string& value_str)
     }
 }
 
+[[nodiscard]] std::optional<int64_t> ParamValue::get_int64() const
+{
+    if (std::get_if<uint64_t>(&_value)) {
+        return static_cast<int64_t>(std::get<uint64_t>(_value));
+    } else if (std::get_if<int64_t>(&_value)) {
+        return static_cast<int64_t>(std::get<int64_t>(_value));
+    } else if (std::get_if<uint32_t>(&_value)) {
+        return static_cast<int64_t>(std::get<uint32_t>(_value));
+    } else if (std::get_if<int32_t>(&_value)) {
+        return static_cast<int64_t>(std::get<int32_t>(_value));
+    } else if (std::get_if<uint16_t>(&_value)) {
+        return static_cast<int64_t>(std::get<uint16_t>(_value));
+    } else if (std::get_if<int16_t>(&_value)) {
+        return static_cast<int64_t>(std::get<int16_t>(_value));
+    } else if (std::get_if<uint8_t>(&_value)) {
+        return static_cast<int64_t>(std::get<uint8_t>(_value));
+    } else if (std::get_if<int8_t>(&_value)) {
+        return static_cast<int64_t>(std::get<int8_t>(_value));
+    } else {
+        LogErr() << "Not int64_t type";
+        return {};
+    }
+}
+
 bool ParamValue::set_int(int new_value)
 {
     if (std::get_if<uint8_t>(&_value)) {
@@ -651,6 +675,18 @@ void ParamValue::set_custom(const std::string& new_value)
         return std::get<float>(_value);
     } else {
         LogErr() << "Not float type";
+        return {};
+    }
+}
+
+[[nodiscard]] std::optional<double> ParamValue::get_double() const
+{
+    if (std::get_if<double>(&_value)) {
+        return std::get<double>(_value);
+    } else if (std::get_if<float>(&_value)) {
+        return static_cast<double>(std::get<float>(_value));
+    } else {
+        LogErr() << "Not double type";
         return {};
     }
 }
