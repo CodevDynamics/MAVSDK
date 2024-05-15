@@ -794,6 +794,42 @@ bool CameraDefinition::is_setting_range(const std::string& name)
     return _parameter_map[name]->is_range;
 }
 
+bool CameraDefinition::is_setting_control(const std::string& name)
+{
+    std::lock_guard<std::mutex> lock(_mutex);
+
+    if (_parameter_map.find(name) == _parameter_map.end()) {
+        LogWarn() << "Setting " << name << " not found.";
+        return false;
+    }
+
+    return _parameter_map[name]->is_control;
+}
+
+bool CameraDefinition::is_setting_readonly(const std::string& name)
+{
+    std::lock_guard<std::mutex> lock(_mutex);
+
+    if (_parameter_map.find(name) == _parameter_map.end()) {
+        LogWarn() << "Setting " << name << " not found.";
+        return false;
+    }
+
+    return _parameter_map[name]->is_readonly;
+}
+
+bool CameraDefinition::is_setting_writeonly(const std::string& name)
+{
+    std::lock_guard<std::mutex> lock(_mutex);
+
+    if (_parameter_map.find(name) == _parameter_map.end()) {
+        LogWarn() << "Setting " << name << " not found.";
+        return false;
+    }
+
+    return _parameter_map[name]->is_writeonly;
+}
+
 bool CameraDefinition::get_setting_str(const std::string& name, std::string& description)
 {
     std::lock_guard<std::mutex> lock(_mutex);

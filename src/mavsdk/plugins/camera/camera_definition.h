@@ -43,6 +43,9 @@ public:
     bool get_possible_options(const std::string& name, std::vector<ParamValue>& values);
 
     bool is_setting_range(const std::string& name);
+    bool is_setting_control(const std::string& name);
+    bool is_setting_readonly(const std::string& name);
+    bool is_setting_writeonly(const std::string& name);
 
     bool get_setting_str(const std::string& setting_name, std::string& description);
     bool get_option_str(
