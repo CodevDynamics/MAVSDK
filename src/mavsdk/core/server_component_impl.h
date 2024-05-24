@@ -113,6 +113,7 @@ public:
     void change_call_every(float interval_s, const void* cookie);
     void reset_call_every(const void* cookie);
     void remove_call_every(const void* cookie);
+    void pause_call_every(const void* cookie);
 
     mavlink_command_ack_t
     make_command_ack_message(const MavlinkCommandReceiver::CommandLong& command, MAV_RESULT result);

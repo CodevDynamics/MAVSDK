@@ -197,6 +197,11 @@ void ServerComponentImpl::remove_call_every(const void* cookie)
     _mavsdk_impl.call_every_handler.remove(cookie);
 }
 
+void ServerComponentImpl::pause_call_every(const void* cookie)
+{
+    _mavsdk_impl.call_every_handler.pause(cookie);
+}
+
 mavlink_command_ack_t ServerComponentImpl::make_command_ack_message(
     const MavlinkCommandReceiver::CommandLong& command, MAV_RESULT result)
 {

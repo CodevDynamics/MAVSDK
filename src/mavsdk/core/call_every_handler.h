@@ -23,6 +23,7 @@ public:
     void change(double interval_s, const void* cookie);
     void reset(const void* cookie);
     void remove(const void* cookie);
+    void pause(const void* cookie);
 
     void run_once();
 
@@ -31,6 +32,7 @@ private:
         std::function<void()> callback{nullptr};
         SteadyTimePoint last_time{};
         double interval_s{0.0};
+        bool paused{false};
     };
 
     std::unordered_map<void*, std::shared_ptr<Entry>> _entries{};

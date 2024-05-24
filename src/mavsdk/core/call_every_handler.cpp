@@ -45,6 +45,7 @@ void CallEveryHandler::reset(const void* cookie)
     auto it = _entries.find(const_cast<void*>(cookie));
     if (it != _entries.end()) {
         it->second->last_time = _time.steady_time();
+        it->second->paused = false;
     }
 }
 
@@ -59,12 +60,22 @@ void CallEveryHandler::remove(const void* cookie)
     }
 }
 
+void CallEveryHandler::pause(const void* cookie)
+{
+    std::lock_guard<std::mutex> lock(_entries_mutex);
+
+    auto it = _entries.find(const_cast<void*>(cookie));
+    if (it != _entries.end()) {
+        it->second->paused = true;
+    }
+}
+
 void CallEveryHandler::run_once()
 {
     _entries_mutex.lock();
 
     for (auto& entry : _entries) {
-        if (_time.elapsed_since_s(entry.second->last_time) > double(entry.second->interval_s)) {
+        if (!entry.second->paused && _time.elapsed_since_s(entry.second->last_time) > double(entry.second->interval_s)) {
             _time.shift_steady_time_by(entry.second->last_time, double(entry.second->interval_s));
 
             if (entry.second->callback) {
