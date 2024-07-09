@@ -5,6 +5,12 @@
 
 namespace mavsdk {
 
+size_t strrnlenn(const char *s, size_t maxlen) {
+    while (maxlen > 0 && s[maxlen - 1] == '\0') {
+        maxlen--;
+    }
+    return maxlen;
+}
 // std::to_string doesn't work for std::string, so we need this workaround.
 template<typename T> std::string to_string(T&& value)
 {
@@ -250,7 +256,7 @@ bool ParamValue::set_from_mavlink_param_ext_value(
             _value = temp;
         } break;
         case MAV_PARAM_EXT_TYPE_CUSTOM: {
-            std::size_t len = strnlen(mavlink_ext_value.param_value, 128);
+            std::size_t len = strrnlenn(mavlink_ext_value.param_value, 128);
             _value =
                 std::string(mavlink_ext_value.param_value, len);
         } break;
@@ -318,7 +324,7 @@ bool ParamValue::set_from_mavlink_param_ext_ack(
             _value = temp;
         } break;
         case MAV_PARAM_EXT_TYPE_CUSTOM: {
-            std::size_t len = strnlen(mavlink_ext_ack.param_value, 128);
+            std::size_t len = strrnlenn(mavlink_ext_ack.param_value, 128);
             _value =
                 std::string(mavlink_ext_ack.param_value, len);
         } break;
