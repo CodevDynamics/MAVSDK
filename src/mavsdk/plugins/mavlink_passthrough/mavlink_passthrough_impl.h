@@ -36,6 +36,10 @@ public:
         const std::string& name, std::optional<uint8_t> maybe_component_id, bool extended);
     std::pair<MavlinkPassthrough::Result, float> get_param_float(
         const std::string& name, std::optional<uint8_t> maybe_component_id, bool extended);
+    MavlinkPassthrough::Result set_param_int(
+        const std::string& name, int32_t value, std::optional<uint8_t> maybe_component_id, bool extended);
+    MavlinkPassthrough::Result set_param_float(
+        const std::string& name, float value, std::optional<uint8_t> maybe_component_id, bool extended);
 
     MavlinkPassthrough::MessageHandle
     subscribe_message(uint16_t message_id, const MavlinkPassthrough::MessageCallback& callback);

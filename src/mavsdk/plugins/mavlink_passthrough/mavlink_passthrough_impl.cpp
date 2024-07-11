@@ -132,6 +132,19 @@ std::pair<MavlinkPassthrough::Result, float> MavlinkPassthroughImpl::get_param_f
     return std::make_pair(translated_result, result.second);
 }
 
+MavlinkPassthrough::Result MavlinkPassthroughImpl::set_param_int(
+    const std::string& name, int32_t value, std::optional<uint8_t> maybe_component_id, bool extended)
+{
+    auto result = _system_impl->set_param_int(name, value, maybe_component_id, extended);
+    return to_mavlink_passthrough_result_from_mavlink_params_result(result);
+}
+
+MavlinkPassthrough::Result MavlinkPassthroughImpl::set_param_float(
+    const std::string& name, float value, std::optional<uint8_t> maybe_component_id, bool extended)
+{
+    auto result = _system_impl->set_param_float(name, value, maybe_component_id, extended);
+    return to_mavlink_passthrough_result_from_mavlink_params_result(result);
+}
 MavlinkPassthrough::Result
 MavlinkPassthroughImpl::to_mavlink_passthrough_result_from_mavlink_commands_result(
     MavlinkCommandSender::Result result)
