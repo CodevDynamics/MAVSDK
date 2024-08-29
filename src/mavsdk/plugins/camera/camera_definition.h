@@ -35,6 +35,7 @@ public:
     bool get_setting(const std::string& name, ParamValue& value);
     bool get_all_settings(std::unordered_map<std::string, ParamValue>& settings);
     bool get_possible_settings(std::unordered_map<std::string, ParamValue>& settings);
+    bool get_update_settings(const std::string& name, std::unordered_map<std::string, ParamValue>& settings);
 
     bool get_option_value(
         const std::string& param_name, const std::string& option_value, ParamValue& value);

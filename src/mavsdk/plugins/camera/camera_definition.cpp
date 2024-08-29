@@ -505,6 +505,27 @@ bool CameraDefinition::get_possible_settings(std::unordered_map<std::string, Par
     return get_possible_settings_locked(settings);
 }
 
+bool CameraDefinition::get_update_settings(const std::string& name, std::unordered_map<std::string, ParamValue>& settings)
+{
+    std::lock_guard<std::mutex> lock(_mutex);
+
+    settings.clear();
+
+    if (_parameter_map.find(name) == _parameter_map.end()) {
+        LogErr() << "Unknown parameter to get update settings";
+        return false;
+    }
+
+    for (const auto& update : _parameter_map[name]->updates) {
+        if (_current_settings.find(update) == _current_settings.end()) {
+            continue;
+        }
+        settings[update] = _current_settings[update].value;
+    }
+
+    return (settings.size() > 0);
+}
+
 bool CameraDefinition::get_possible_settings_locked(
     std::unordered_map<std::string, ParamValue>& settings)
 {
