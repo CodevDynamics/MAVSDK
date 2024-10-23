@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <mavsdk/mavsdk.h>
 #include <mavsdk/plugins/gimbal/gimbal.h>
-#include <mavsdk/plugins/telemetry/telemetry.h>
 #include <iostream>
 #include <future>
 #include <memory>
@@ -43,27 +42,38 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    auto system = mavsdk.first_autopilot(3.0);
-    if (!system) {
-        std::cerr << "Timed out waiting for system\n";
+    int timeout_count = 0;
+    std::shared_ptr<System> system;
+    do {
+        auto systems = mavsdk.systems();
+        for (auto& sys : systems) {
+            if (sys->has_gimbal()) {
+                system = sys;
+                break;
+            }
+        }
+        if(!system) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    } while (timeout_count++ < 30 && !system);
+
+    if(system) {
+        std::cout << "Discovered gimbal." << std::endl;
+    } else {
+        std::cerr << "No gimbal found, exiting" << std::endl;
         return 1;
     }
 
     // Instantiate plugins.
-    auto telemetry = Telemetry{system.value()};
-    auto gimbal = Gimbal{system.value()};
+    auto gimbal = Gimbal{system};
 
-    // We want to listen to the camera/gimbal angle of the drone at 5 Hz.
-    const Telemetry::Result set_rate_result = telemetry.set_rate_camera_attitude(5.0);
-    if (set_rate_result != Telemetry::Result::Success) {
-        std::cerr << "Setting rate failed:" << set_rate_result << '\n';
-        return 1;
-    }
 
     // Set up callback to monitor camera/gimbal angle
-    telemetry.subscribe_camera_attitude_euler([](Telemetry::EulerAngle angle) {
-        std::cout << "Gimbal angle pitch: " << angle.pitch_deg << " deg, yaw: " << angle.yaw_deg
-                  << " deg, roll: " << angle.roll_deg << " deg\n";
+    gimbal.subscribe_attitude([](Gimbal::Attitude attitude) {
+        std::cout << "Gimbal angle pitch: " << attitude.euler_angle_forward.pitch_deg
+                  << " deg, yaw: " << attitude.euler_angle_forward.yaw_deg
+                  << " yaw (relative to forward)\n";
+        std::cout << "Gimbal angle pitch: " << attitude.euler_angle_north.pitch_deg
+                  << " deg, yaw: " << attitude.euler_angle_north.yaw_deg
+                  << " yaw (relative to North)\n";
     });
 
     std::cout << "Start controlling gimbal...\n";

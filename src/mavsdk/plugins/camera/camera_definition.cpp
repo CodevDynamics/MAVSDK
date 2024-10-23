@@ -613,6 +613,13 @@ bool CameraDefinition::set_setting(const std::string& name, const ParamValue& va
     return true;
 }
 
+bool CameraDefinition::exist_setting(const std::string& name)
+{
+    std::lock_guard<std::mutex> lock(_mutex);
+
+    return _parameter_map.find(name) != _parameter_map.end();
+}
+
 bool CameraDefinition::get_setting(const std::string& name, ParamValue& value)
 {
     std::lock_guard<std::mutex> lock(_mutex);

@@ -42,14 +42,28 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    auto system = mavsdk.first_autopilot(3.0);
-    if (!system) {
-        std::cerr << "Timed out waiting for system\n";
+    int timeout_count = 0;
+    std::shared_ptr<System> system;
+    do {
+        auto systems = mavsdk.systems();
+        for (auto& sys : systems) {
+            if (sys->has_gimbal()) {
+                system = sys;
+                break;
+            }
+        }
+        if(!system) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    } while (timeout_count++ < 300 && !system);
+
+    if(system) {
+        std::cout << "Discovered gimbal." << std::endl;
+    } else {
+        std::cerr << "No gimbal found, exiting" << std::endl;
         return 1;
     }
 
     // Instantiate plugins.
-    auto gimbal = Gimbal{system.value()};
+    auto gimbal = Gimbal{system};
 
     // Set up callback to monitor camera/gimbal angle
     gimbal.subscribe_attitude([](Gimbal::Attitude attitude) {

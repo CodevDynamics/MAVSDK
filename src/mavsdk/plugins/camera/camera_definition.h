@@ -31,6 +31,7 @@ public:
         ParamValue value;
     };
 
+    bool exist_setting(const std::string& name);
     bool set_setting(const std::string& name, const ParamValue& value, bool updates = true);
     bool get_setting(const std::string& name, ParamValue& value);
     bool get_all_settings(std::unordered_map<std::string, ParamValue>& settings);

@@ -4,7 +4,6 @@
 
 #include <mavsdk/mavsdk.h>
 #include <mavsdk/plugins/camera/camera.h>
-#include <mavsdk/plugins/telemetry/telemetry.h>
 #include <chrono>
 #include <cstdint>
 #include <iostream>
@@ -42,35 +41,27 @@ int main(int argc, char** argv)
     }
 
     std::cout << "Waiting to discover system...\n";
-    auto prom = std::promise<std::shared_ptr<System>>{};
-    auto fut = prom.get_future();
-
-    // We wait for new systems to be discovered, once we find one that has a
-    // camera, we decide to use it.
-    Mavsdk::NewSystemHandle handle = mavsdk.subscribe_on_new_system([&mavsdk, &prom, &handle]() {
-        auto system = mavsdk.systems().back();
-
-        if (system->has_camera()) {
-            std::cout << "Discovered camera\n";
-
-            // Unsubscribe again as we only want to find one system.
-            mavsdk.unsubscribe_on_new_system(handle);
-            prom.set_value(system);
+    int timeout_count = 0;
+    std::shared_ptr<System> system;
+    do {
+        auto systems = mavsdk.systems();
+        for (auto& sys : systems) {
+            if (sys->has_camera()) {
+                system = sys;
+                break;
+            }
         }
-    });
+        if(!system) std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    } while (timeout_count++ < 300 && !system);
 
-    // We usually receive heartbeats at 1Hz, therefore we should find a
-    // system after around 3 seconds max, surely.
-    if (fut.wait_for(seconds(3)) == std::future_status::timeout) {
-        std::cerr << "No camera found, exiting.\n";
+    if(system) {
+        std::cout << "Discovered camera." << std::endl;
+    } else {
+        std::cerr << "No camera found, exiting" << std::endl;
         return 1;
     }
 
-    // Get discovered system now.
-    auto system = fut.get();
-
     // Instantiate plugins.
-    auto telemetry = Telemetry{system};
     auto camera = Camera{system};
 
     // First, make sure camera is in photo mode.
@@ -87,8 +78,7 @@ int main(int argc, char** argv)
 
     const auto photo_result = camera.take_photo();
     if (photo_result != Camera::Result::Success) {
-        std::cerr << "Taking Photo failed: " << mode_result;
-        return 1;
+        std::cerr << "Taking Photo failed: " << photo_result;
     }
 
     // Wait a bit to make sure we see capture information.

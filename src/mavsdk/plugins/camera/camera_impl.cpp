@@ -315,7 +315,7 @@ CameraImpl::make_command_take_photo(float interval_s, float no_of_photos)
     cmd_take_photo.params.maybe_param1 = 0.0f; // Reserved, set to 0
     cmd_take_photo.params.maybe_param2 = interval_s;
     cmd_take_photo.params.maybe_param3 = no_of_photos;
-    cmd_take_photo.params.maybe_param4 = static_cast<float>(_capture.sequence++);
+    // cmd_take_photo.params.maybe_param4 = static_cast<float>(_capture.sequence++);
     cmd_take_photo.target_component_id = _camera_id + MAV_COMP_ID_CAMERA;
 
     return cmd_take_photo;
@@ -1132,6 +1132,10 @@ Camera::Result CameraImpl::set_mode(const Camera::Mode mode)
 
 void CameraImpl::save_camera_mode(const float mavlink_camera_mode)
 {
+    if(!_camera_definition->exist_setting("CAM_MODE")) {
+        return;
+    }
+
     if (!std::isfinite(mavlink_camera_mode)) {
         LogWarn() << "Can't save NAN as camera mode";
         return;
