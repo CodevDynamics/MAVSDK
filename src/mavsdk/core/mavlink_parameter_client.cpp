@@ -653,6 +653,7 @@ void MavlinkParameterClient::process_param_value(const mavlink_message_t& messag
     auto work_queue_guard = std::make_unique<LockedQueue<WorkItem>::Guard>(_work_queue);
     const auto work = work_queue_guard->get_front();
     if (!work) {
+        find_and_call_subscriptions_value_changed(safe_param_id, received_value);
         return;
     }
 
@@ -845,6 +846,7 @@ void MavlinkParameterClient::process_param_ext_value(const mavlink_message_t& me
     auto work_queue_guard = std::make_unique<LockedQueue<WorkItem>::Guard>(_work_queue);
     auto work = work_queue_guard->get_front();
     if (!work) {
+        find_and_call_subscriptions_value_changed(safe_param_id, received_value);
         return;
     }
     if (!work->already_requested) {

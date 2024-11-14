@@ -20,9 +20,17 @@ ParamImpl::~ParamImpl()
     _system_impl->unregister_plugin(this);
 }
 
-void ParamImpl::init() {}
+void ParamImpl::init()
+{
+    _param_clients.push_back(_system_impl->param_sender(_component_id, _protocol_version == Param::ProtocolVersion::Ext));
+}
 
-void ParamImpl::deinit() {}
+void ParamImpl::deinit()
+{
+    for (auto* client : _param_clients) {
+        client->unsubscribe_all_params_changed(this);
+    }
+}
 
 void ParamImpl::enable() {}
 
@@ -118,7 +126,40 @@ ParamImpl::select_component(int32_t component_id, Param::ProtocolVersion protoco
 {
     _component_id = component_id;
     _protocol_version = protocol_version;
+
+    auto param_client = _system_impl->param_sender(_component_id, _protocol_version == Param::ProtocolVersion::Ext);
+    auto it = std::find(_param_clients.begin(), _param_clients.end(), param_client);
+    if (it == _param_clients.end()) {
+        _param_clients.push_back(param_client);
+    }
+    
     return Param::Result::Unknown;
+}
+
+void
+ParamImpl::subscribe_param_float_changed(const std::string& name, const MavlinkParameterSubscription::ParamFloatChangedCallback& callback)
+{
+    _system_impl->param_sender(_component_id, _protocol_version == Param::ProtocolVersion::Ext)->subscribe_param_float_changed(name, callback, this);
+}
+
+void
+ParamImpl::subscribe_param_int_changed(const std::string& name, const MavlinkParameterSubscription::ParamIntChangedCallback& callback)
+{
+    _system_impl->param_sender(_component_id, _protocol_version == Param::ProtocolVersion::Ext)->subscribe_param_int_changed(name, callback, this);
+}
+
+void
+ParamImpl::subscribe_param_custom_changed(const std::string& name, const MavlinkParameterSubscription::ParamCustomChangedCallback& callback)
+{
+    _system_impl->param_sender(_component_id, _protocol_version == Param::ProtocolVersion::Ext)->subscribe_param_custom_changed(name, callback, this);
+}
+
+void
+ParamImpl::unsubscribe_param_all_changed()
+{
+    for (auto* client : _param_clients) {
+        client->unsubscribe_all_params_changed(this);
+    }
 }
 
 Param::Result

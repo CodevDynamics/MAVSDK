@@ -36,12 +36,21 @@ public:
 
     Param::Result select_component(int32_t component_id, Param::ProtocolVersion protocol_version);
 
+    void subscribe_param_float_changed(const std::string& name, const MavlinkParameterSubscription::ParamFloatChangedCallback& callback);
+
+    void subscribe_param_int_changed(const std::string& name, const MavlinkParameterSubscription::ParamIntChangedCallback& callback);
+
+    void subscribe_param_custom_changed(const std::string& name, const MavlinkParameterSubscription::ParamCustomChangedCallback& callback);
+
+    void unsubscribe_param_all_changed();
+
 private:
     static Param::Result
     result_from_mavlink_parameter_client_result(MavlinkParameterClient::Result result);
 
     uint8_t _component_id{MAV_COMP_ID_AUTOPILOT1};
     Param::ProtocolVersion _protocol_version{Param::ProtocolVersion::V1};
+    std::vector<MavlinkParameterClient*> _param_clients;
 };
 
 } // namespace mavsdk
