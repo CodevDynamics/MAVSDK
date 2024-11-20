@@ -36,6 +36,19 @@ void ParamImpl::enable() {}
 
 void ParamImpl::disable() {}
 
+std::pair<Param::Result, ParamValue> ParamImpl::get_param(const std::string& name)
+{
+    auto result = _system_impl->param_sender(_component_id, _protocol_version == Param::ProtocolVersion::Ext)->get_param(name);
+    return std::make_pair<>(
+        result_from_mavlink_parameter_client_result(result.first), result.second);
+}
+
+Param::Result ParamImpl::set_param(const std::string& name, ParamValue value)
+{
+    auto result = _system_impl->param_sender(_component_id, _protocol_version == Param::ProtocolVersion::Ext)->set_param(name, value);
+    return result_from_mavlink_parameter_client_result(result);
+}
+
 std::pair<Param::Result, int32_t> ParamImpl::get_param_int(const std::string& name)
 {
     std::pair<MavlinkParameterClient::Result, int32_t> result = _system_impl->get_param_int(
