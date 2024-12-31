@@ -246,8 +246,8 @@ bool CameraDefinition::parse_xml()
                 new_parameter->default_option.name = default_str;
                 new_parameter->default_option.value = default_value;
             }
-            new_parameter->is_string = (type_str == "string");
         }
+        new_parameter->is_string = (type_str == "string");
 
         _parameter_map[param_name] = new_parameter;
 
