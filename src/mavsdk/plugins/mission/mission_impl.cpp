@@ -354,6 +354,13 @@ float MissionImpl::hold_time(const MissionItem& item)
         hold_time_s = 0.5f;
     }
 
+    if (std::isfinite(item.loiter_time_s) && item.loiter_time_s > 0.0f) {
+        hold_time_s = item.loiter_time_s;
+        if (item.is_fly_through) {
+            LogWarn() << "Conflicting options set: fly_through=true and loiter_time>0.";
+        }
+    }
+
     return hold_time_s;
 }
 
@@ -466,33 +473,6 @@ MissionImpl::convert_to_int_items(const std::vector<MissionItem>& mission_items)
             }
         }
 
-        if (std::isfinite(item.speed_m_s)) {
-            // The speed has changed, we need to add a speed command.
-
-            // Current is the 0th waypoint
-            uint8_t current = ((int_items.size() == 0) ? 1 : 0);
-
-            uint8_t autocontinue = 1;
-
-            MavlinkMissionTransferClient::ItemInt next_item{
-                static_cast<uint16_t>(int_items.size()),
-                MAV_FRAME_MISSION,
-                MAV_CMD_DO_CHANGE_SPEED,
-                current,
-                autocontinue,
-                1.0f, // ground speed
-                item.speed_m_s,
-                -1.0f, // no throttle change
-                0.0f, // absolute
-                0,
-                0,
-                NAN,
-                MAV_MISSION_TYPE_MISSION};
-
-            _mission_data.mavlink_mission_item_to_mission_item_indices.push_back(item_i);
-            int_items.push_back(next_item);
-        }
-
         if (std::isfinite(item.gimbal_yaw_deg) || std::isfinite(item.gimbal_pitch_deg)) {
             const auto temp_gimbal_protocol = _gimbal_protocol.load();
             switch (temp_gimbal_protocol) {
@@ -533,49 +513,11 @@ MissionImpl::convert_to_int_items(const std::vector<MissionItem>& mission_items)
                 NAN,
                 0,
                 0,
-                NAN,
+                MAV_MOUNT_MODE_MAVLINK_TARGETING,
                 MAV_MISSION_TYPE_MISSION};
 
             _mission_data.mavlink_mission_item_to_mission_item_indices.push_back(item_i);
             int_items.push_back(next_item);
-        }
-
-        // A loiter time of NAN is ignored but also a loiter time of 0 doesn't
-        // make any sense and should be discarded.
-        if (std::isfinite(item.loiter_time_s) && item.loiter_time_s > 0.0f) {
-            if (!last_position_valid) {
-                // In the case where we get a delay without a previous position, we will have to
-                // ignore it.
-                LogErr() << "Can't set camera action delay without previous position set.";
-
-            } else {
-                // Current is the 0th waypoint
-                uint8_t current = ((int_items.size() == 0) ? 1 : 0);
-
-                uint8_t autocontinue = 1;
-
-                MavlinkMissionTransferClient::ItemInt next_item{
-                    static_cast<uint16_t>(int_items.size()),
-                    MAV_FRAME_MISSION,
-                    MAV_CMD_NAV_DELAY,
-                    current,
-                    autocontinue,
-                    item.loiter_time_s, // loiter time in seconds
-                    -1, // no specified hour
-                    -1, // no specified minute
-                    -1, // no specified second
-                    0,
-                    0,
-                    0,
-                    MAV_MISSION_TYPE_MISSION};
-
-                _mission_data.mavlink_mission_item_to_mission_item_indices.push_back(item_i);
-                int_items.push_back(next_item);
-            }
-
-            if (item.is_fly_through) {
-                LogWarn() << "Conflicting options set: fly_through=true and loiter_time>0.";
-            }
         }
 
         if (item.camera_action != CameraAction::None) {
@@ -587,21 +529,19 @@ MissionImpl::convert_to_int_items(const std::vector<MissionItem>& mission_items)
             float param1 = NAN;
             float param2 = NAN;
             float param3 = NAN;
-            float param4 = NAN;
+            float param4 = NAN; // no capture sequence
             switch (item.camera_action) {
                 case CameraAction::TakePhoto:
                     command = MAV_CMD_IMAGE_START_CAPTURE;
                     param1 = 0.0f; // all camera IDs
                     param2 = 0.0f; // no duration, take only one picture
                     param3 = 1.0f; // only take one picture
-                    param4 = 0.0f; // no capture sequence
                     break;
                 case CameraAction::StartPhotoInterval:
                     command = MAV_CMD_IMAGE_START_CAPTURE;
                     param1 = 0.0f; // all camera IDs
                     param2 = item.camera_photo_interval_s;
                     param3 = 0.0f; // unlimited photos
-                    param4 = 0.0f; // no capture sequence
                     break;
                 case CameraAction::StopPhotoInterval:
                     command = MAV_CMD_IMAGE_STOP_CAPTURE;
@@ -649,6 +589,33 @@ MissionImpl::convert_to_int_items(const std::vector<MissionItem>& mission_items)
                 0,
                 0,
                 NAN,
+                MAV_MISSION_TYPE_MISSION};
+
+            _mission_data.mavlink_mission_item_to_mission_item_indices.push_back(item_i);
+            int_items.push_back(next_item);
+        }
+
+        if (item.vehicle_action == VehicleAction::None && std::isfinite(item.speed_m_s)) {
+            // The speed has changed, we need to add a speed command.
+
+            // Current is the 0th waypoint
+            uint8_t current = ((int_items.size() == 0) ? 1 : 0);
+
+            uint8_t autocontinue = 1;
+
+            MavlinkMissionTransferClient::ItemInt next_item{
+                static_cast<uint16_t>(int_items.size()),
+                MAV_FRAME_MISSION,
+                MAV_CMD_DO_CHANGE_SPEED,
+                current,
+                autocontinue,
+                1.0f, // ground speed
+                item.speed_m_s,
+                -1.0f, // no throttle change
+                0.0f, // absolute
+                0,
+                0,
+                0.0f,
                 MAV_MISSION_TYPE_MISSION};
 
             _mission_data.mavlink_mission_item_to_mission_item_indices.push_back(item_i);
@@ -1321,7 +1288,7 @@ void MissionImpl::add_gimbal_items_v1(
         pitch_deg, // pitch
         0.0f, // roll (yes it is a weird order)
         yaw_deg, // yaw
-        NAN,
+        0,
         0,
         0,
         MAV_MOUNT_MODE_MAVLINK_TARGETING,
