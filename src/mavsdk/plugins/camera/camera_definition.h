@@ -49,6 +49,7 @@ public:
     bool is_setting_readonly(const std::string& name);
     bool is_setting_writeonly(const std::string& name);
     bool is_setting_stringtype(const std::string& name);
+    bool is_setting_customtype(const std::string& name);
 
     bool get_setting_str(const std::string& setting_name, std::string& description);
     bool get_option_str(
@@ -84,6 +85,7 @@ private:
         Option default_option{};
         bool is_range{false};
         bool is_string{false};
+        bool is_custom{false};
     };
 
     bool parse_xml();

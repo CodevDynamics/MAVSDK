@@ -248,6 +248,7 @@ bool CameraDefinition::parse_xml()
             }
         }
         new_parameter->is_string = (type_str == "string");
+        new_parameter->is_custom = (type_str == "custom");
 
         _parameter_map[param_name] = new_parameter;
 
@@ -869,6 +870,18 @@ bool CameraDefinition::is_setting_stringtype(const std::string& name)
     }
 
     return _parameter_map[name]->is_string;
+}
+
+bool CameraDefinition::is_setting_customtype(const std::string& name)
+{
+    std::lock_guard<std::mutex> lock(_mutex);
+
+    if (_parameter_map.find(name) == _parameter_map.end()) {
+        LogWarn() << "Setting " << name << " not found.";
+        return false;
+    }
+
+    return _parameter_map[name]->is_custom;
 }
 
 bool CameraDefinition::get_setting_str(const std::string& name, std::string& description)
