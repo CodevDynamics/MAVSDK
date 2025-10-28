@@ -89,8 +89,6 @@ private:
     void process_mission_current(const mavlink_message_t& message);
     void process_mission_item_reached(const mavlink_message_t& message);
     void receive_protocol_timeout();
-    void wait_for_protocol();
-    void wait_for_protocol_async(std::function<void()> callback);
 
     static bool has_valid_position(const Mission::MissionItem& item);
     static float hold_time(const Mission::MissionItem& item);

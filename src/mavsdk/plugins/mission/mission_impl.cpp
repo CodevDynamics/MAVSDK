@@ -100,9 +100,7 @@ bool MissionImpl::refresh_mission_data(const Mission::MissionPlan& mission_plan)
 
     reset_mission_progress();
 
-    wait_for_protocol_async([mission_plan, this]() {
-        convert_to_int_items(mission_plan.mission_items);
-    });
+    convert_to_int_items(mission_plan.mission_items);
 
     return true;
 }
@@ -336,7 +334,6 @@ MissionImpl::convert_to_int_items(const std::vector<MissionItem>& mission_items)
 {
     std::vector<MavlinkMissionTransferClient::ItemInt> int_items;
 
-    bool last_position_valid = false; // This flag is to protect us from using an invalid x/y.
     _have_return_to_launch_after_mission = false;
 
     unsigned item_i = 0;
@@ -416,8 +413,6 @@ MissionImpl::convert_to_int_items(const std::vector<MissionItem>& mission_items)
                     y,
                     z,
                     MAV_MISSION_TYPE_MISSION};
-
-                last_position_valid = true; // because we checked has_valid_position
 
                 _mission_data.mavlink_mission_item_to_mission_item_indices.push_back(item_i);
                 int_items.push_back(next_item);
