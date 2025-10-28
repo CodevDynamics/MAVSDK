@@ -1,5 +1,6 @@
 #include "log.h"
 #include "mavsdk.h"
+#include <atomic>
 #include <filesystem>
 #include <gtest/gtest.h>
 #include <chrono>
@@ -9,6 +10,7 @@
 #include "plugins/ftp/ftp.h"
 #include "plugins/ftp_server/ftp_server.h"
 #include "fs_helpers.h"
+#include "unused.h"
 
 using namespace mavsdk;
 
@@ -26,15 +28,17 @@ TEST(SystemTest, FtpDownloadBurstFile)
     ASSERT_TRUE(create_temp_file(temp_dir_provided / temp_file, 50));
     ASSERT_TRUE(reset_directories(temp_dir_downloaded));
 
-    Mavsdk mavsdk_groundstation{Mavsdk::Configuration{Mavsdk::ComponentType::GroundStation}};
+    Mavsdk mavsdk_groundstation{Mavsdk::Configuration{ComponentType::GroundStation}};
     mavsdk_groundstation.set_timeout_s(reduced_timeout_s);
 
-    Mavsdk mavsdk_autopilot{Mavsdk::Configuration{Mavsdk::ComponentType::Autopilot}};
+    Mavsdk mavsdk_autopilot{Mavsdk::Configuration{ComponentType::Autopilot}};
     mavsdk_autopilot.set_timeout_s(reduced_timeout_s);
 
-    ASSERT_EQ(mavsdk_groundstation.add_any_connection("udp://:17000"), ConnectionResult::Success);
     ASSERT_EQ(
-        mavsdk_autopilot.add_any_connection("udp://127.0.0.1:17000"), ConnectionResult::Success);
+        mavsdk_groundstation.add_any_connection("udpin://0.0.0.0:17000"),
+        ConnectionResult::Success);
+    ASSERT_EQ(
+        mavsdk_autopilot.add_any_connection("udpout://127.0.0.1:17000"), ConnectionResult::Success);
 
     auto ftp_server = FtpServer{mavsdk_autopilot.server_component()};
 
@@ -97,15 +101,17 @@ TEST(SystemTest, FtpDownloadBurstBigFile)
     ASSERT_TRUE(create_temp_file(temp_dir_provided / temp_file, 50000));
     ASSERT_TRUE(reset_directories(temp_dir_downloaded));
 
-    Mavsdk mavsdk_groundstation{Mavsdk::Configuration{Mavsdk::ComponentType::GroundStation}};
+    Mavsdk mavsdk_groundstation{Mavsdk::Configuration{ComponentType::GroundStation}};
     mavsdk_groundstation.set_timeout_s(reduced_timeout_s);
 
-    Mavsdk mavsdk_autopilot{Mavsdk::Configuration{Mavsdk::ComponentType::Autopilot}};
+    Mavsdk mavsdk_autopilot{Mavsdk::Configuration{ComponentType::Autopilot}};
     mavsdk_autopilot.set_timeout_s(reduced_timeout_s);
 
-    ASSERT_EQ(mavsdk_groundstation.add_any_connection("udp://:17000"), ConnectionResult::Success);
     ASSERT_EQ(
-        mavsdk_autopilot.add_any_connection("udp://127.0.0.1:17000"), ConnectionResult::Success);
+        mavsdk_groundstation.add_any_connection("udpin://0.0.0.0:17000"),
+        ConnectionResult::Success);
+    ASSERT_EQ(
+        mavsdk_autopilot.add_any_connection("udpout://127.0.0.1:17000"), ConnectionResult::Success);
 
     auto ftp_server = FtpServer{mavsdk_autopilot.server_component()};
 
@@ -119,18 +125,21 @@ TEST(SystemTest, FtpDownloadBurstBigFile)
 
     auto ftp = Ftp{system};
 
+    unsigned slow_down_counter = 0;
     auto prom = std::promise<Ftp::Result>();
     auto fut = prom.get_future();
     ftp.download_async(
         temp_file.string(),
         temp_dir_downloaded.string(),
         true,
-        [&prom](Ftp::Result result, Ftp::ProgressData progress_data) {
+        [&prom, &slow_down_counter](Ftp::Result result, Ftp::ProgressData progress_data) {
             if (result != Ftp::Result::Next) {
                 prom.set_value(result);
             } else {
-                LogDebug() << "Download progress: " << progress_data.bytes_transferred << "/"
-                           << progress_data.total_bytes << " bytes";
+                if (slow_down_counter++ % 10 == 0) {
+                    LogDebug() << "Download progress: " << progress_data.bytes_transferred << "/"
+                               << progress_data.total_bytes << " bytes";
+                }
             }
         });
 
@@ -149,21 +158,23 @@ TEST(SystemTest, FtpDownloadBurstBigFileLossy)
     ASSERT_TRUE(create_temp_file(temp_dir_provided / temp_file, 10000));
     ASSERT_TRUE(reset_directories(temp_dir_downloaded));
 
-    Mavsdk mavsdk_groundstation{Mavsdk::Configuration{Mavsdk::ComponentType::GroundStation}};
+    Mavsdk mavsdk_groundstation{Mavsdk::Configuration{ComponentType::GroundStation}};
     mavsdk_groundstation.set_timeout_s(reduced_timeout_s);
 
-    Mavsdk mavsdk_autopilot{Mavsdk::Configuration{Mavsdk::ComponentType::Autopilot}};
+    Mavsdk mavsdk_autopilot{Mavsdk::Configuration{ComponentType::Autopilot}};
     mavsdk_autopilot.set_timeout_s(reduced_timeout_s);
 
-    unsigned counter = 0;
+    std::atomic<unsigned> counter = 0;
     auto drop_some = [&counter](mavlink_message_t&) { return counter++ % 5; };
 
     mavsdk_groundstation.intercept_incoming_messages_async(drop_some);
     mavsdk_groundstation.intercept_outgoing_messages_async(drop_some);
 
-    ASSERT_EQ(mavsdk_groundstation.add_any_connection("udp://:17000"), ConnectionResult::Success);
     ASSERT_EQ(
-        mavsdk_autopilot.add_any_connection("udp://127.0.0.1:17000"), ConnectionResult::Success);
+        mavsdk_groundstation.add_any_connection("udpin://0.0.0.0:17000"),
+        ConnectionResult::Success);
+    ASSERT_EQ(
+        mavsdk_autopilot.add_any_connection("udpout://127.0.0.1:17000"), ConnectionResult::Success);
 
     auto ftp_server = FtpServer{mavsdk_autopilot.server_component()};
 
@@ -177,18 +188,21 @@ TEST(SystemTest, FtpDownloadBurstBigFileLossy)
 
     auto ftp = Ftp{system};
 
+    unsigned slow_down_counter = 0;
     auto prom = std::promise<Ftp::Result>();
     auto fut = prom.get_future();
     ftp.download_async(
         ("" / temp_file).string(),
         temp_dir_downloaded.string(),
         true,
-        [&prom](Ftp::Result result, Ftp::ProgressData progress_data) {
+        [&prom, &slow_down_counter](Ftp::Result result, Ftp::ProgressData progress_data) {
             if (result != Ftp::Result::Next) {
                 prom.set_value(result);
             } else {
-                LogDebug() << "Download progress: " << progress_data.bytes_transferred << "/"
-                           << progress_data.total_bytes << " bytes";
+                if (slow_down_counter++ % 10 == 0) {
+                    LogDebug() << "Download progress: " << progress_data.bytes_transferred << "/"
+                               << progress_data.total_bytes << " bytes";
+                }
             }
         });
 
@@ -215,10 +229,10 @@ TEST(SystemTest, FtpDownloadBurstStopAndTryAgain)
     ASSERT_TRUE(create_temp_file(temp_dir_provided / temp_file, file_size));
     ASSERT_TRUE(reset_directories(temp_dir_downloaded));
 
-    Mavsdk mavsdk_groundstation{Mavsdk::Configuration{Mavsdk::ComponentType::GroundStation}};
+    Mavsdk mavsdk_groundstation{Mavsdk::Configuration{ComponentType::GroundStation}};
     mavsdk_groundstation.set_timeout_s(reduced_timeout_s);
 
-    Mavsdk mavsdk_autopilot{Mavsdk::Configuration{Mavsdk::ComponentType::Autopilot}};
+    Mavsdk mavsdk_autopilot{Mavsdk::Configuration{ComponentType::Autopilot}};
     mavsdk_autopilot.set_timeout_s(reduced_timeout_s);
 
     // Once we received half, we want to stop all traffic.
@@ -234,6 +248,7 @@ TEST(SystemTest, FtpDownloadBurstStopAndTryAgain)
     };
 
     auto drop_at_some_point_out = [&received, msg_count](mavlink_message_t& message) {
+        UNUSED(message);
         if (received >= msg_count / 2) {
             return false;
         }
@@ -243,9 +258,11 @@ TEST(SystemTest, FtpDownloadBurstStopAndTryAgain)
     mavsdk_groundstation.intercept_incoming_messages_async(drop_at_some_point_in);
     mavsdk_groundstation.intercept_outgoing_messages_async(drop_at_some_point_out);
 
-    ASSERT_EQ(mavsdk_groundstation.add_any_connection("udp://:17000"), ConnectionResult::Success);
     ASSERT_EQ(
-        mavsdk_autopilot.add_any_connection("udp://127.0.0.1:17000"), ConnectionResult::Success);
+        mavsdk_groundstation.add_any_connection("udpin://0.0.0.0:17000"),
+        ConnectionResult::Success);
+    ASSERT_EQ(
+        mavsdk_autopilot.add_any_connection("udpout://127.0.0.1:17000"), ConnectionResult::Success);
 
     auto ftp_server = FtpServer{mavsdk_autopilot.server_component()};
 
@@ -259,24 +276,26 @@ TEST(SystemTest, FtpDownloadBurstStopAndTryAgain)
 
     auto ftp = Ftp{system};
 
-    auto prom = std::promise<Ftp::Result>();
-    auto fut = prom.get_future();
-    ftp.download_async(
-        ("" / temp_file).string(),
-        temp_dir_downloaded.string(),
-        true,
-        [&prom](Ftp::Result result, Ftp::ProgressData progress_data) {
-            if (result != Ftp::Result::Next) {
-                prom.set_value(result);
-            } else {
-                LogDebug() << "Download progress: " << progress_data.bytes_transferred << "/"
-                           << progress_data.total_bytes << " bytes";
-            }
-        });
+    {
+        auto prom = std::promise<Ftp::Result>();
+        auto fut = prom.get_future();
+        ftp.download_async(
+            ("" / temp_file).string(),
+            temp_dir_downloaded.string(),
+            true,
+            [&prom](Ftp::Result result, Ftp::ProgressData progress_data) {
+                if (result != Ftp::Result::Next) {
+                    prom.set_value(result);
+                } else {
+                    LogDebug() << "Download progress: " << progress_data.bytes_transferred << "/"
+                               << progress_data.total_bytes << " bytes";
+                }
+            });
 
-    auto future_status = fut.wait_for(std::chrono::seconds(10));
-    ASSERT_EQ(future_status, std::future_status::ready);
-    EXPECT_EQ(fut.get(), Ftp::Result::Timeout);
+        auto future_status = fut.wait_for(std::chrono::seconds(10));
+        ASSERT_EQ(future_status, std::future_status::ready);
+        EXPECT_EQ(fut.get(), Ftp::Result::Timeout);
+    }
 
     // Before going out of scope, we need to make sure to no longer access the
     // drop_some callback which accesses the local counter variable.
@@ -313,15 +332,17 @@ TEST(SystemTest, FtpDownloadBurstFileOutsideOfRoot)
     ASSERT_TRUE(create_temp_file(temp_dir_provided / temp_file, 50));
     ASSERT_TRUE(reset_directories(temp_dir_downloaded));
 
-    Mavsdk mavsdk_groundstation{Mavsdk::Configuration{Mavsdk::ComponentType::GroundStation}};
+    Mavsdk mavsdk_groundstation{Mavsdk::Configuration{ComponentType::GroundStation}};
     mavsdk_groundstation.set_timeout_s(reduced_timeout_s);
 
-    Mavsdk mavsdk_autopilot{Mavsdk::Configuration{Mavsdk::ComponentType::Autopilot}};
+    Mavsdk mavsdk_autopilot{Mavsdk::Configuration{ComponentType::Autopilot}};
     mavsdk_autopilot.set_timeout_s(reduced_timeout_s);
 
-    ASSERT_EQ(mavsdk_groundstation.add_any_connection("udp://:17000"), ConnectionResult::Success);
     ASSERT_EQ(
-        mavsdk_autopilot.add_any_connection("udp://127.0.0.1:17000"), ConnectionResult::Success);
+        mavsdk_groundstation.add_any_connection("udpin://0.0.0.0:17000"),
+        ConnectionResult::Success);
+    ASSERT_EQ(
+        mavsdk_autopilot.add_any_connection("udpout://127.0.0.1:17000"), ConnectionResult::Success);
 
     auto ftp_server = FtpServer{mavsdk_autopilot.server_component()};
 
@@ -344,6 +365,7 @@ TEST(SystemTest, FtpDownloadBurstFileOutsideOfRoot)
             temp_dir_downloaded.string(),
             true,
             [&prom](Ftp::Result result, Ftp::ProgressData progress_data) {
+                UNUSED(progress_data);
                 prom.set_value(result);
             });
 

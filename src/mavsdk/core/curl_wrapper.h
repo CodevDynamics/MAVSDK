@@ -58,12 +58,6 @@ public:
             const std::string& url,
             const std::string& path,
             const ProgressCallback& progress_callback));
-    MOCK_METHOD3(
-        upload_file,
-        bool(
-            const std::string& url,
-            const std::string& path,
-            const ProgressCallback& progress_callback));
 };
 #endif // TESTING
 

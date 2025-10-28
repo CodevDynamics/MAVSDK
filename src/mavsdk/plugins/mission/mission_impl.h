@@ -78,6 +78,9 @@ public:
     MissionImpl(const MissionImpl&) = delete;
     const MissionImpl& operator=(const MissionImpl&) = delete;
 
+    enum class GimbalProtocol { V1, V2 };
+    GimbalProtocol gimbal_protocol{GimbalProtocol::V1};
+
 private:
     int current_mission_item_locked() const;
     int total_mission_items_locked() const;
@@ -85,7 +88,6 @@ private:
 
     void process_mission_current(const mavlink_message_t& message);
     void process_mission_item_reached(const mavlink_message_t& message);
-    void process_gimbal_manager_information(const mavlink_message_t& message);
     void receive_protocol_timeout();
     void wait_for_protocol();
     void wait_for_protocol_async(std::function<void()> callback);
@@ -136,16 +138,13 @@ private:
         std::weak_ptr<MavlinkMissionTransferClient::WorkItem> last_upload{};
         std::weak_ptr<MavlinkMissionTransferClient::WorkItem> last_download{};
         bool gimbal_v2_in_control{false};
+        uint8_t mission_state{MISSION_STATE_UNKNOWN};
     } _mission_data{};
 
-    void* _timeout_cookie{nullptr};
+    TimeoutHandler::Cookie _timeout_cookie{};
 
     bool _enable_return_to_launch_after_mission{false};
     bool _have_return_to_launch_after_mission{false};
-
-    void* _gimbal_protocol_cookie{nullptr};
-    enum class GimbalProtocol { Unknown, V1, V2 };
-    std::atomic<GimbalProtocol> _gimbal_protocol{GimbalProtocol::Unknown};
 };
 
 } // namespace mavsdk

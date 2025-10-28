@@ -39,24 +39,9 @@ void MissionImpl::init()
         MAVLINK_MSG_ID_MISSION_ITEM_REACHED,
         [this](const mavlink_message_t& message) { process_mission_item_reached(message); },
         this);
-
-    _system_impl->register_mavlink_message_handler(
-        MAVLINK_MSG_ID_GIMBAL_MANAGER_INFORMATION,
-        [this](const mavlink_message_t& message) { process_gimbal_manager_information(message); },
-        this);
 }
 
-void MissionImpl::enable()
-{
-    _system_impl->register_timeout_handler(
-        [this]() { receive_protocol_timeout(); }, 1.0, &_gimbal_protocol_cookie);
-
-    MavlinkCommandSender::CommandLong command{};
-    command.command = MAV_CMD_REQUEST_MESSAGE;
-    command.params.maybe_param1 = static_cast<float>(MAVLINK_MSG_ID_GIMBAL_MANAGER_INFORMATION);
-    command.target_component_id = 0; // any component
-    _system_impl->send_command_async(command, nullptr);
-}
+void MissionImpl::enable() {}
 
 void MissionImpl::disable()
 {
@@ -64,7 +49,6 @@ void MissionImpl::disable()
 
 void MissionImpl::deinit()
 {
-    _system_impl->unregister_timeout_handler(_gimbal_protocol_cookie);
     _system_impl->unregister_timeout_handler(_timeout_cookie);
     _system_impl->unregister_all_mavlink_message_handlers(this);
 }
@@ -85,6 +69,7 @@ void MissionImpl::process_mission_current(const mavlink_message_t& message)
 
     std::lock_guard<std::mutex> lock(_mission_data.mutex);
     _mission_data.last_current_mavlink_mission_item = mission_current.seq;
+    _mission_data.mission_state = mission_current.mission_state;
     report_progress_locked();
 }
 
@@ -96,36 +81,6 @@ void MissionImpl::process_mission_item_reached(const mavlink_message_t& message)
     std::lock_guard<std::mutex> lock(_mission_data.mutex);
     _mission_data.last_reached_mavlink_mission_item = mission_item_reached.seq;
     report_progress_locked();
-}
-
-void MissionImpl::process_gimbal_manager_information(const mavlink_message_t& message)
-{
-    UNUSED(message);
-    if (_gimbal_protocol_cookie != nullptr) {
-        LogDebug() << "Using gimbal protocol v2";
-        _gimbal_protocol = GimbalProtocol::V2;
-        _system_impl->unregister_timeout_handler(_gimbal_protocol_cookie);
-    }
-}
-
-void MissionImpl::wait_for_protocol()
-{
-    while (_gimbal_protocol == GimbalProtocol::Unknown) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-}
-
-void MissionImpl::wait_for_protocol_async(std::function<void()> callback)
-{
-    wait_for_protocol();
-    callback();
-}
-
-void MissionImpl::receive_protocol_timeout()
-{
-    LogDebug() << "Falling back to gimbal protocol v1";
-    _gimbal_protocol = GimbalProtocol::V1;
-    _gimbal_protocol_cookie = nullptr;
 }
 
 Mission::Result MissionImpl::upload_mission(const Mission::MissionPlan& mission_plan)
@@ -166,22 +121,20 @@ void MissionImpl::upload_mission_async(
 
     reset_mission_progress();
 
-    wait_for_protocol_async([callback, mission_plan, this]() {
-        const auto int_items = convert_to_int_items(mission_plan.mission_items);
+    const auto int_items = convert_to_int_items(mission_plan.mission_items);
 
-        _mission_data.last_upload = _system_impl->mission_transfer_client().upload_items_async(
-            MAV_MISSION_TYPE_MISSION,
-            _system_impl->get_system_id(),
-            int_items,
-            [this, callback](MavlinkMissionTransferClient::Result result) {
-                auto converted_result = convert_result(result);
-                _system_impl->call_user_callback([callback, converted_result]() {
-                    if (callback) {
-                        callback(converted_result);
-                    }
-                });
+    _mission_data.last_upload = _system_impl->mission_transfer_client().upload_items_async(
+        MAV_MISSION_TYPE_MISSION,
+        _system_impl->get_system_id(),
+        int_items,
+        [this, callback](MavlinkMissionTransferClient::Result result) {
+            auto converted_result = convert_result(result);
+            _system_impl->call_user_callback([callback, converted_result]() {
+                if (callback) {
+                    callback(converted_result);
+                }
             });
-    });
+        });
 }
 
 void MissionImpl::upload_mission_with_progress_async(
@@ -199,29 +152,27 @@ void MissionImpl::upload_mission_with_progress_async(
 
     reset_mission_progress();
 
-    wait_for_protocol_async([callback, mission_plan, this]() {
-        const auto int_items = convert_to_int_items(mission_plan.mission_items);
+    const auto int_items = convert_to_int_items(mission_plan.mission_items);
 
-        _mission_data.last_upload = _system_impl->mission_transfer_client().upload_items_async(
-            MAV_MISSION_TYPE_MISSION,
-            _system_impl->get_system_id(),
-            int_items,
-            [this, callback](MavlinkMissionTransferClient::Result result) {
-                auto converted_result = convert_result(result);
-                _system_impl->call_user_callback([callback, converted_result]() {
-                    if (callback) {
-                        callback(converted_result, Mission::ProgressData{});
-                    }
-                });
-            },
-            [this, callback](float progress) {
-                _system_impl->call_user_callback([callback, progress]() {
-                    if (callback) {
-                        callback(Mission::Result::Next, Mission::ProgressData{progress});
-                    }
-                });
+    _mission_data.last_upload = _system_impl->mission_transfer_client().upload_items_async(
+        MAV_MISSION_TYPE_MISSION,
+        _system_impl->get_system_id(),
+        int_items,
+        [this, callback](MavlinkMissionTransferClient::Result result) {
+            auto converted_result = convert_result(result);
+            _system_impl->call_user_callback([callback, converted_result]() {
+                if (callback) {
+                    callback(converted_result, Mission::ProgressData{});
+                }
             });
-    });
+        },
+        [this, callback](float progress) {
+            _system_impl->call_user_callback([callback, progress]() {
+                if (callback) {
+                    callback(Mission::Result::Next, Mission::ProgressData{progress});
+                }
+            });
+        });
 }
 
 Mission::Result MissionImpl::cancel_mission_upload() const
@@ -474,25 +425,18 @@ MissionImpl::convert_to_int_items(const std::vector<MissionItem>& mission_items)
         }
 
         if (std::isfinite(item.gimbal_yaw_deg) || std::isfinite(item.gimbal_pitch_deg)) {
-            const auto temp_gimbal_protocol = _gimbal_protocol.load();
-            switch (temp_gimbal_protocol) {
-                case GimbalProtocol::V1:
-                    add_gimbal_items_v1(
-                        int_items, item_i, item.gimbal_pitch_deg, item.gimbal_yaw_deg, item.gimbal_yaw_mode);
-                    break;
-
-                case GimbalProtocol::V2:
-                    if (!_mission_data.gimbal_v2_in_control) {
-                        acquire_gimbal_control_v2(int_items, item_i);
-                        _mission_data.gimbal_v2_in_control = true;
-                    }
-                    add_gimbal_items_v2(
-                        int_items, item_i, item.gimbal_pitch_deg, item.gimbal_yaw_deg, item.gimbal_yaw_mode);
-                    break;
-                case GimbalProtocol::Unknown:
-                    // This should not happen because we wait until we know the protocol version.
-                    LogErr() << "Unknown gimbal protocol, skipping gimbal commands.";
-                    break;
+            if(gimbal_protocol == GimbalProtocol::V1) {
+                add_gimbal_items_v1(
+                    int_items, item_i, item.gimbal_pitch_deg, item.gimbal_yaw_deg, item.gimbal_yaw_mode);
+            } else if(gimbal_protocol == GimbalProtocol::V2) {
+                if (!_mission_data.gimbal_v2_in_control) {
+                    acquire_gimbal_control_v2(int_items, item_i);
+                    _mission_data.gimbal_v2_in_control = true;
+                }
+                add_gimbal_items_v2(
+                    int_items, item_i, item.gimbal_pitch_deg, item.gimbal_yaw_deg, item.gimbal_yaw_mode);
+            } else {
+                LogErr() << "Unknown gimbal protocol, skipping gimbal commands.";
             }
         }
 
@@ -1121,17 +1065,30 @@ std::pair<Mission::Result, bool> MissionImpl::is_mission_finished_locked() const
         return std::make_pair<Mission::Result, bool>(Mission::Result::Success, false);
     }
 
-    // It is not straightforward to look at "current" because it jumps to 0
-    // once the last item has been done. Therefore we have to lo decide using
-    // "reached" here.
-    // It seems that we never receive a reached when RTL is initiated after
-    // a mission, and we need to account for that.
-    const unsigned rtl_correction = (_enable_return_to_launch_after_mission || _have_return_to_launch_after_mission) ? 2 : 1;
+    // If mission_state is Unknown, fall back to the previous behavior
+    if (_mission_data.mission_state == MISSION_STATE_UNKNOWN) {
+        // It is not straightforward to look at "current" because it jumps to 0
+        // once the last item has been done. Therefore we have to lo decide using
+        // "reached" here.
+        // With PX4, it seems that we didn't use to receive a reached when RTL is initiated
+        // after a mission, and we needed to account for that all the way to PX4 v1.16.
+        const unsigned rtl_correction = (_enable_return_to_launch_after_mission || _have_return_to_launch_after_mission) ? 2 : 1;
 
-    return std::make_pair<Mission::Result, bool>(
-        Mission::Result::Success,
-        unsigned(_mission_data.last_reached_mavlink_mission_item + rtl_correction) ==
-            _mission_data.mavlink_mission_item_to_mission_item_indices.size());
+        // By accepting the current to be larger than the total, we are accepting the case
+        // where we no longer require the rtl_correction, as this is now getting fixed in PX4.
+        return std::make_pair<Mission::Result, bool>(
+            Mission::Result::Success,
+            unsigned(_mission_data.last_reached_mavlink_mission_item + rtl_correction) >=
+                _mission_data.mavlink_mission_item_to_mission_item_indices.size());
+    }
+
+    // If mission_state is Completed, the mission is finished
+    if (_mission_data.mission_state == MISSION_STATE_COMPLETE) {
+        return std::make_pair<Mission::Result, bool>(Mission::Result::Success, true);
+    }
+
+    // If mission_state is NotCompleted, the mission is not finished
+    return std::make_pair<Mission::Result, bool>(Mission::Result::Success, false);
 }
 
 int MissionImpl::current_mission_item() const

@@ -29,6 +29,8 @@ bool CurlWrapper::download_text(const std::string& url, std::string& content)
         curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, write_callback);
         curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &readBuffer);
+        curl_easy_setopt(curl.get(), CURLOPT_SSL_VERIFYPEER, 1L);
+        curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 1L);
         if(!username.empty()) curl_easy_setopt(curl.get(), CURLOPT_USERNAME, username.c_str());
         if(!password.empty()) curl_easy_setopt(curl.get(), CURLOPT_PASSWORD, password.c_str());
         res = curl_easy_perform(curl.get());
@@ -60,14 +62,14 @@ upload_progress_update(void* p, double dltotal, double dlnow, double ultotal, do
     }
 
     if (ultotal == 0 || ulnow == 0) {
-        return myp->progress_callback(0, Status::Idle, CURLcode::CURLE_OK);
+        return myp->progress_callback(0, HttpStatus::Idle, CURLcode::CURLE_OK);
     }
 
     int percentage = static_cast<int>(100.0 / ultotal * ulnow);
 
     if (percentage > myp->progress_in_percentage) {
         myp->progress_in_percentage = percentage;
-        return myp->progress_callback(percentage, Status::Uploading, CURLcode::CURLE_OK);
+        return myp->progress_callback(percentage, HttpStatus::Uploading, CURLcode::CURLE_OK);
     }
 
     return 0;
@@ -137,12 +139,12 @@ bool CurlWrapper::upload_file(
 
         if (res == CURLcode::CURLE_OK) {
             if (nullptr != progress_callback) {
-                progress_callback(100, Status::Finished, CURLcode::CURLE_OK);
+                progress_callback(100, HttpStatus::Finished, CURLcode::CURLE_OK);
             }
             return true;
         } else {
             if (nullptr != progress_callback) {
-                progress_callback(0, Status::Error, res);
+                progress_callback(0, HttpStatus::Error, res);
             }
             LogErr() << "Error while uploading file, curl error code: " << curl_easy_strerror(res);
             return false;
@@ -166,14 +168,14 @@ download_progress_update(void* p, double dltotal, double dlnow, double ultotal, 
     }
 
     if (dltotal == 0 || dlnow == 0) {
-        return myp->progress_callback(0, Status::Idle, CURLcode::CURLE_OK);
-    }
+        return myp->progress_callback(0, HttpStatus::Idle, CURLcode::CURLE_OK);
+    } else {
+        int percentage = static_cast<int>(100 * dlnow / dltotal);
 
-    int percentage = static_cast<int>(100 / dltotal * dlnow);
-
-    if (percentage > myp->progress_in_percentage) {
-        myp->progress_in_percentage = percentage;
-        return myp->progress_callback(percentage, Status::Downloading, CURLcode::CURLE_OK);
+        if (percentage > myp->progress_in_percentage) {
+            myp->progress_in_percentage = percentage;
+            return myp->progress_callback(percentage, HttpStatus::Downloading, CURLcode::CURLE_OK);
+        }
     }
 
     return 0;
@@ -192,12 +194,14 @@ bool CurlWrapper::download_file_to_path(
 
         fp = fopen(path.c_str(), "wb");
         curl_easy_setopt(curl.get(), CURLOPT_CONNECTTIMEOUT, 5L);
-        curl_easy_setopt(curl.get(), CURLOPT_PROGRESSFUNCTION, download_progress_update);
+        curl_easy_setopt(curl.get(), CURLOPT_XFERINFOFUNCTION, download_progress_update);
         curl_easy_setopt(curl.get(), CURLOPT_PROGRESSDATA, &progress);
         curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, NULL);
         curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, fp);
         curl_easy_setopt(curl.get(), CURLOPT_NOPROGRESS, 0L);
+        curl_easy_setopt(curl.get(), CURLOPT_SSL_VERIFYPEER, 1L);
+        curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 1L);
         if(!username.empty()) curl_easy_setopt(curl.get(), CURLOPT_USERNAME, username.c_str());
         if(!password.empty()) curl_easy_setopt(curl.get(), CURLOPT_PASSWORD, password.c_str());
         res = curl_easy_perform(curl.get());
@@ -205,12 +209,12 @@ bool CurlWrapper::download_file_to_path(
 
         if (res == CURLcode::CURLE_OK) {
             if (nullptr != progress_callback) {
-                progress_callback(100, Status::Finished, res);
+                progress_callback(100, HttpStatus::Finished, res);
             }
             return true;
         } else {
             if (nullptr != progress_callback) {
-                progress_callback(0, Status::Error, res);
+                progress_callback(0, HttpStatus::Error, res);
             }
             remove(path.c_str());
             LogErr() << "Error while downloading file, curl error code: "
