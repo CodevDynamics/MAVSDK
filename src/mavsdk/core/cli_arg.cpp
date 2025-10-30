@@ -72,6 +72,8 @@ bool CliArg::parse_udp(const std::string_view rest)
     if(ampersandPos > 0) {
         rest2 = rest.substr(ampersandPos+1);
         rest1 = rest.substr(0, ampersandPos);
+    } else {
+        rest1 = rest;
     }
     const std::string delimiter = ":";
     size_t pos = rest1.find(delimiter);
