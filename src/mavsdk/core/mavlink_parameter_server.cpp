@@ -68,21 +68,6 @@ MavlinkParameterServer::~MavlinkParameterServer()
     _message_handler.unregister_all(this);
 }
 
-void MavlinkParameterServer::publish_server_param(const std::string& name, bool extended)
-{
-    const auto param_count = _param_cache.count(extended);
-    const auto param_opt = _param_cache.param_by_id(name, true);
-
-    if (param_opt.has_value()) {
-        const auto& param = param_opt.value();
-        auto new_work = std::make_shared<WorkItem>(
-            param.id,
-            param.value,
-            WorkItemValue{param.index, param_count, extended});
-        _work_queue.push_back(new_work);
-    }
-}
-
 MavlinkParameterServer::Result
 MavlinkParameterServer::provide_server_param(const std::string& name, const ParamValue& param_value)
 {
@@ -106,16 +91,18 @@ MavlinkParameterServer::provide_server_param(const std::string& name, const Para
             // then, to not change the public api behaviour, try updating its value.
             switch (_param_cache.update_existing_param(name, param_value)) {
                 case MavlinkParameterCache::UpdateExistingParamResult::Ok:
-                    find_and_call_subscriptions_value_changed(name, param_value);
                     {
-                        auto new_work = std::make_shared<WorkItem>(
-                            name,
-                            param_value,
-                            WorkItemValue{
-                                std::numeric_limits<std::uint16_t>::max(),
-                                std::numeric_limits<std::uint16_t>::max(),
-                                _last_extended});
-                        _work_queue.push_back(new_work);
+                        const auto param_count = _param_cache.count(_last_extended);
+                        const auto param_opt = _param_cache.param_by_id(name, _last_extended);
+                    
+                        if (param_opt.has_value()) {
+                            const auto& param = param_opt.value();
+                            auto new_work = std::make_shared<WorkItem>(
+                                param.id,
+                                param.value,
+                                WorkItemValue{param.index, param_count, _last_extended});
+                            _work_queue.push_back(new_work);
+                        }
                     }
                     return Result::OkExistsAlready;
                 case MavlinkParameterCache::UpdateExistingParamResult::MissingParam:
