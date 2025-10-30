@@ -90,8 +90,11 @@ bool CliArg::parse_udp(const std::string_view rest)
     } else if(rest2.empty()) {
         p.mode = Udp::Mode::Out;
     } else {
-        p.remotes = find_remotes(rest2);
         p.mode = Udp::Mode::In;
+    }
+
+    if(!rest2.empty()) {
+        p.remotes = find_remotes(rest2);
     }
 
     if (auto maybe_port = port_from_str(rest1.substr(pos + 1))) {
