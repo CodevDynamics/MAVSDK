@@ -855,7 +855,8 @@ MavsdkImpl::add_udp_connection(const CliArg::Udp& udp, ForwardingOption forwardi
         }
     }
 
-    auto handle = add_connection(std::move(new_conn), new_conn.get());
+    auto new_conn_ptr = new_conn.get();
+    auto handle = add_connection(std::move(new_conn), new_conn_ptr);
 
     return {ConnectionResult::Success, handle};
 }
