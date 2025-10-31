@@ -68,7 +68,7 @@ bool CliArg::parse_udp(const std::string_view rest)
 {
     std::string rest1;
     std::string rest2;
-    size_t ampersandPos = rest.find('&');
+    int ampersandPos = rest.find('&');
     if(ampersandPos > 0) {
         rest2 = rest.substr(ampersandPos+1);
         rest1 = rest.substr(0, ampersandPos);
@@ -83,20 +83,20 @@ bool CliArg::parse_udp(const std::string_view rest)
 
     protocol = Udp{};
     auto& p = std::get<Udp>(protocol);
+    p.remotes.clear();
+    if(!rest2.empty()) {
+        p.remotes = find_remotes(rest2);
+    }
     p.host = rest1.substr(0, pos);
     if (p.host.empty()) {
         p.host = "0.0.0.0";
         p.mode = Udp::Mode::In;
     } else if (p.host == "0.0.0.0") {
         p.mode = Udp::Mode::In;
-    } else if(rest2.empty()) {
+    } else if(p.remotes.empty()) {
         p.mode = Udp::Mode::Out;
     } else {
         p.mode = Udp::Mode::In;
-    }
-
-    if(!rest2.empty()) {
-        p.remotes = find_remotes(rest2);
     }
 
     if (auto maybe_port = port_from_str(rest1.substr(pos + 1))) {
