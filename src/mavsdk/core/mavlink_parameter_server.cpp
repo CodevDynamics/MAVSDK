@@ -247,7 +247,7 @@ void MavlinkParameterServer::process_param_set_internally(
             return;
         }
         case MavlinkParameterCache::UpdateExistingParamResult::Ok: {
-            LogWarn() << "Update existing params!";
+            LogDebug() << "Update existing params!";
             const auto updated_parameter = _param_cache.param_by_id(param_id, extended).value();
             // The param set doesn't differentiate between an update that actually changed the value
             // e.g. 0 to 1 and an update that had no effect e.g. 0 to 0.
