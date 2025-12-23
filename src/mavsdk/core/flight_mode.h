@@ -25,6 +25,13 @@ enum class FlightMode {
     Acro,
     Rattitude,
     Stabilized,
+    FlightMode_MAX = 240,
+    Simple,
+    PrecLand,
+    Orbit,
+    ReturnToGroundStation,
+    Sport,
+    Slow
 };
 
 FlightMode

@@ -117,6 +117,12 @@ FlightMode to_flight_mode_from_px4_mode(uint32_t custom_mode)
         case px4::PX4_CUSTOM_MAIN_MODE_MANUAL:
             return FlightMode::Manual;
         case px4::PX4_CUSTOM_MAIN_MODE_POSCTL:
+            switch (px4_custom_mode.sub_mode) {
+                case px4::PX4_CUSTOM_SUB_MODE_POSCTL_POSCTL:
+                    return FlightMode::Posctl;
+                case px4::PX4_CUSTOM_SUB_MODE_POSCTL_ORBIT:
+                    return FlightMode::Orbit;
+            }
             return FlightMode::Posctl;
         case px4::PX4_CUSTOM_MAIN_MODE_ALTCTL:
             return FlightMode::Altctl;
@@ -126,6 +132,8 @@ FlightMode to_flight_mode_from_px4_mode(uint32_t custom_mode)
             return FlightMode::Acro;
         case px4::PX4_CUSTOM_MAIN_MODE_STABILIZED:
             return FlightMode::Stabilized;
+        case px4::PX4_CUSTOM_MAIN_MODE_SIMPLE:
+            return FlightMode::Simple;
         case px4::PX4_CUSTOM_MAIN_MODE_AUTO:
             switch (px4_custom_mode.sub_mode) {
                 case px4::PX4_CUSTOM_SUB_MODE_AUTO_READY:
@@ -142,9 +150,17 @@ FlightMode to_flight_mode_from_px4_mode(uint32_t custom_mode)
                     return FlightMode::Land;
                 case px4::PX4_CUSTOM_SUB_MODE_AUTO_FOLLOW_TARGET:
                     return FlightMode::FollowMe;
+                case px4::PX4_CUSTOM_SUB_MODE_AUTO_PRECLAND:
+                    return FlightMode::PrecLand;
+                case px4::PX4_CUSTOM_SUB_MODE_AUTO_RTGS:
+                    return FlightMode::ReturnToGroundStation;
                 default:
                     return FlightMode::Unknown;
             }
+        case px4::PX4_CUSTOM_MAIN_MODE_SPORT:
+            return FlightMode::Sport;
+        case px4::PX4_CUSTOM_MAIN_MODE_SLOW:
+            return FlightMode::Slow;
         default:
             return FlightMode::Unknown;
     }

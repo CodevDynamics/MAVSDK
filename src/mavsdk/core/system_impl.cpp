@@ -1115,6 +1115,25 @@ SystemImpl::make_command_px4_mode(FlightMode flight_mode, uint8_t component_id)
         case FlightMode::Stabilized:
             custom_mode = px4::PX4_CUSTOM_MAIN_MODE_STABILIZED;
             break;
+        case FlightMode::Orbit:
+            custom_mode = px4::PX4_CUSTOM_MAIN_MODE_POSCTL;
+            custom_sub_mode = px4::PX4_CUSTOM_SUB_MODE_POSCTL_ORBIT;
+            break;
+        case FlightMode::Simple:
+            custom_mode = px4::PX4_CUSTOM_MAIN_MODE_SIMPLE;
+            break;
+        case FlightMode::Sport:
+            custom_mode = px4::PX4_CUSTOM_MAIN_MODE_SPORT;
+            break;
+        case FlightMode::Slow:
+            custom_mode = px4::PX4_CUSTOM_MAIN_MODE_SLOW;
+            break;
+        case FlightMode::PrecLand:
+            custom_sub_mode = px4::PX4_CUSTOM_SUB_MODE_AUTO_PRECLAND;
+            break;
+        case FlightMode::ReturnToGroundStation:
+            custom_sub_mode = px4::PX4_CUSTOM_SUB_MODE_AUTO_RTGS;
+            break;
         default:
             LogErr() << "Unknown Flight mode.";
             MavlinkCommandSender::CommandLong empty_command{};
