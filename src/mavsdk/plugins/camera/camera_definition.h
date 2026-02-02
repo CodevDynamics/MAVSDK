@@ -52,6 +52,7 @@ public:
     bool is_setting_writeonly(const std::string& name);
     bool is_setting_stringtype(const std::string& name);
     bool is_setting_customtype(const std::string& name);
+    bool is_setting_booltype(const std::string& name);
 
     bool get_setting_str(const std::string& setting_name, std::string& description);
     bool get_option_str(
@@ -59,6 +60,11 @@ public:
 
     void get_unknown_params(std::vector<std::pair<std::string, ParamValue>>& params);
     void set_all_params_unknown();
+
+    // Localization methods
+    bool get_all_locales(std::vector<std::string>& locales);
+    bool get_translations(const std::string& locale, std::unordered_map<std::string, std::string>& translations);
+    bool get_translation(const std::string& locale, const std::string& original, std::string& translated);
 
     // Non-copyable
     CameraDefinition(const CameraDefinition&) = delete;
@@ -86,6 +92,7 @@ private:
         bool is_range{false};
         bool is_string{false};
         bool is_custom{false};
+        bool is_bool{false};
     };
 
     bool parse_xml();
@@ -116,6 +123,9 @@ private:
 
     std::string _model{};
     std::string _vendor{};
+
+    // Localization storage: locale_name -> (original -> translated)
+    std::unordered_map<std::string, std::unordered_map<std::string, std::string>> _localization_map{};
 };
 
 } // namespace mavsdk

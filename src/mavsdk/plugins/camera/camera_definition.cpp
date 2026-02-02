@@ -202,12 +202,13 @@ bool CameraDefinition::parse_xml()
                 return false;
             }
         } else if (type_str == "bool") {
+            new_parameter->is_bool = true;
             // Automaticaly create bool options if the parameter type is bool as per documentation.
             Option true_option;
             true_option.name = "on";
             true_option.value.set<uint8_t>(true);
             Option false_option;
-            true_option.name = "off";
+            false_option.name = "off";
             false_option.value.set<uint8_t>(false);
 
             new_parameter->options = {
@@ -245,6 +246,32 @@ bool CameraDefinition::parse_xml()
         InternalCurrentSetting empty_setting{};
         empty_setting.needs_updating = true;
         _current_settings[param_name] = empty_setting;
+    }
+
+    // Parse localization section
+    auto e_localization = e_mavlinkcamera->FirstChildElement("localization");
+    if (e_localization) {
+        for (auto e_locale = e_localization->FirstChildElement("locale"); e_locale != nullptr;
+             e_locale = e_locale->NextSiblingElement("locale")) {
+            const char* locale_name = e_locale->Attribute("name");
+            if (!locale_name) {
+                LogWarn() << "locale name attribute missing";
+                continue;
+            }
+
+            std::unordered_map<std::string, std::string> translations{};
+            for (auto e_strings = e_locale->FirstChildElement("strings"); e_strings != nullptr;
+                 e_strings = e_strings->NextSiblingElement("strings")) {
+                const char* original = e_strings->Attribute("original");
+                const char* translated = e_strings->Attribute("translated");
+                if (!original || !translated) {
+                    LogWarn() << "strings original or translated attribute missing";
+                    continue;
+                }
+                translations[original] = translated;
+            }
+            _localization_map[locale_name] = translations;
+        }
     }
 
     return true;
@@ -815,6 +842,16 @@ bool CameraDefinition::is_setting_customtype(const std::string& name)
     return _parameter_map[name]->is_custom;
 }
 
+bool CameraDefinition::is_setting_booltype(const std::string& name)
+{
+    if (_parameter_map.find(name) == _parameter_map.end()) {
+        LogWarn() << "Setting " << name << " not found.";
+        return false;
+    }
+
+    return _parameter_map[name]->is_bool;
+}
+
 bool CameraDefinition::get_setting_str(const std::string& name, std::string& description)
 {
     description.clear();
@@ -846,6 +883,44 @@ bool CameraDefinition::get_option_str(
     }
     LogWarn() << "Option " << option_name << " not found";
     return false;
+}
+
+bool CameraDefinition::get_all_locales(std::vector<std::string>& locales)
+{
+    locales.clear();
+    for (const auto& locale_pair : _localization_map) {
+        locales.push_back(locale_pair.first);
+    }
+    return !locales.empty();
+}
+
+bool CameraDefinition::get_translations(
+    const std::string& locale, std::unordered_map<std::string, std::string>& translations)
+{
+    translations.clear();
+    if (_localization_map.find(locale) == _localization_map.end()) {
+        LogWarn() << "Locale " << locale << " not found.";
+        return false;
+    }
+    translations = _localization_map[locale];
+    return true;
+}
+
+bool CameraDefinition::get_translation(
+    const std::string& locale, const std::string& original, std::string& translated)
+{
+    translated.clear();
+    if (_localization_map.find(locale) == _localization_map.end()) {
+        LogWarn() << "Locale " << locale << " not found.";
+        return false;
+    }
+    const auto& translations = _localization_map[locale];
+    if (translations.find(original) == translations.end()) {
+        LogWarn() << "Translation for \"" << original << "\" not found in locale " << locale;
+        return false;
+    }
+    translated = translations.at(original);
+    return true;
 }
 
 } // namespace mavsdk
