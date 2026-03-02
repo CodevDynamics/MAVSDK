@@ -621,6 +621,16 @@ bool CameraDefinition::get_setting(const std::string& name, ParamValue& value)
     }
 }
 
+bool CameraDefinition::get_default_setting(const std::string& name, ParamValue& value)
+{
+    if (_parameter_map.find(name) == _parameter_map.end()) {
+        LogErr() << "Unknown parameter to get default: " << name;
+        return false;
+    }
+    value = _parameter_map.at(name)->default_option.value;
+    return true;
+}
+
 bool CameraDefinition::get_option_value(
     const std::string& param_name, const std::string& option_value, ParamValue& value)
 {
@@ -668,6 +678,49 @@ bool CameraDefinition::get_all_options(const std::string& name, std::vector<std:
         names.push_back(option->name);
     }
 
+    return true;
+}
+
+bool CameraDefinition::get_option_exclusions(const std::string& param_name, size_t option_index,
+    std::vector<std::string>& exclusions)
+{
+    exclusions.clear();
+    if (_parameter_map.find(param_name) == _parameter_map.end()) {
+        LogErr() << "Unknown parameter to get option exclusions: " << param_name;
+        return false;
+    }
+    const auto& options = _parameter_map[param_name]->options;
+    if (option_index >= options.size()) {
+        LogErr() << "Option index out of range: " << param_name;
+        return false;
+    }
+    exclusions = options[option_index]->exclusions;
+    return true;
+}
+
+bool CameraDefinition::get_option_parameter_ranges(const std::string& param_name, size_t option_index,
+    std::vector<std::pair<std::string, std::pair<std::vector<std::string>, std::vector<ParamValue>>>>& ranges)
+{
+    ranges.clear();
+    if (_parameter_map.find(param_name) == _parameter_map.end()) {
+        LogErr() << "Unknown parameter to get option parameter ranges: " << param_name;
+        return false;
+    }
+    const auto& options = _parameter_map[param_name]->options;
+    if (option_index >= options.size()) {
+        LogErr() << "Option index out of range: " << param_name;
+        return false;
+    }
+    const auto& pr = options[option_index]->parameter_ranges;
+    for (const auto& target : pr) {
+        std::vector<std::string> enum_strings;
+        std::vector<ParamValue> enum_values;
+        for (const auto& kv : target.second) {
+            enum_strings.push_back(kv.first);
+            enum_values.push_back(kv.second);
+        }
+        ranges.emplace_back(target.first, std::make_pair(std::move(enum_strings), std::move(enum_values)));
+    }
     return true;
 }
 

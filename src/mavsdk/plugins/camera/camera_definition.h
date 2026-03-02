@@ -36,6 +36,7 @@ public:
     bool exist_setting(const std::string& name);
     bool set_setting(const std::string& name, const ParamValue& value, bool updates = true);
     bool get_setting(const std::string& name, ParamValue& value);
+    bool get_default_setting(const std::string& name, ParamValue& value);
     bool get_all_settings(std::unordered_map<std::string, ParamValue>& settings);
     bool get_possible_settings(std::unordered_map<std::string, ParamValue>& settings);
     bool get_update_settings(const std::string& name, std::unordered_map<std::string, ParamValue>& settings);
@@ -45,6 +46,11 @@ public:
     bool get_all_options(const std::string& name, std::vector<ParamValue>& values);
     bool get_all_options(const std::string& name, std::vector<std::string>& names);
     bool get_possible_options(const std::string& name, std::vector<ParamValue>& values);
+
+    bool get_option_exclusions(const std::string& param_name, size_t option_index,
+        std::vector<std::string>& exclusions);
+    bool get_option_parameter_ranges(const std::string& param_name, size_t option_index,
+        std::vector<std::pair<std::string, std::pair<std::vector<std::string>, std::vector<ParamValue>>>>& ranges);
 
     bool is_setting_range(const std::string& name);
     bool is_setting_control(const std::string& name);
