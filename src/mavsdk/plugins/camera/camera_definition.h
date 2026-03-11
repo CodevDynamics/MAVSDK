@@ -50,7 +50,7 @@ public:
     bool get_option_exclusions(const std::string& param_name, size_t option_index,
         std::vector<std::string>& exclusions);
     bool get_option_parameter_ranges(const std::string& param_name, size_t option_index,
-        std::vector<std::pair<std::string, std::pair<std::vector<std::string>, std::vector<ParamValue>>>>& ranges);
+        std::vector<std::tuple<std::string, std::string, std::vector<std::string>, std::vector<ParamValue>>>& ranges);
 
     bool is_setting_range(const std::string& name);
     bool is_setting_control(const std::string& name);
@@ -78,12 +78,13 @@ public:
 
 private:
     using ParameterRange = std::unordered_map<std::string, ParamValue>;
+    using ParameterRangeEntry = std::pair<std::string, ParameterRange>;
 
     struct Option {
         std::string name{};
         ParamValue value{};
         std::vector<std::string> exclusions{};
-        std::unordered_map<std::string, ParameterRange> parameter_ranges{};
+        std::unordered_map<std::string, ParameterRangeEntry> parameter_ranges{};
     };
 
     struct Parameter {

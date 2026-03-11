@@ -327,6 +327,12 @@ CameraDefinition::parse_options(
                     return std::make_pair<>(false, options);
                 }
 
+                std::string condition_str;
+                const char* condition_attr = e_parameterrange->Attribute("condition");
+                if (condition_attr) {
+                    condition_str = condition_attr;
+                }
+
                 ParameterRange new_parameter_range;
 
                 for (auto e_roption = e_parameterrange->FirstChildElement("roption");
@@ -361,7 +367,7 @@ CameraDefinition::parse_options(
                     //            << " (" << new_param_value.typestr() << ")";
                 }
 
-                new_option->parameter_ranges[roption_parameter_str] = new_parameter_range;
+                new_option->parameter_ranges[roption_parameter_str] = std::make_pair(condition_str, new_parameter_range);
 
                 // LogDebug() << "adding to: " << roption_parameter_str;
             }
@@ -699,7 +705,7 @@ bool CameraDefinition::get_option_exclusions(const std::string& param_name, size
 }
 
 bool CameraDefinition::get_option_parameter_ranges(const std::string& param_name, size_t option_index,
-    std::vector<std::pair<std::string, std::pair<std::vector<std::string>, std::vector<ParamValue>>>>& ranges)
+    std::vector<std::tuple<std::string, std::string, std::vector<std::string>, std::vector<ParamValue>>>& ranges)
 {
     ranges.clear();
     if (_parameter_map.find(param_name) == _parameter_map.end()) {
@@ -715,11 +721,11 @@ bool CameraDefinition::get_option_parameter_ranges(const std::string& param_name
     for (const auto& target : pr) {
         std::vector<std::string> enum_strings;
         std::vector<ParamValue> enum_values;
-        for (const auto& kv : target.second) {
+        for (const auto& kv : target.second.second) {
             enum_strings.push_back(kv.first);
             enum_values.push_back(kv.second);
         }
-        ranges.emplace_back(target.first, std::make_pair(std::move(enum_strings), std::move(enum_values)));
+        ranges.emplace_back(target.first, target.second.first, std::move(enum_strings), std::move(enum_values));
     }
     return true;
 }
@@ -793,7 +799,7 @@ bool CameraDefinition::get_possible_options(
                 // Go through parameter ranges but only concerning the parameter that
                 // we're interested in.
                 if (option->parameter_ranges.find(name) != option->parameter_ranges.end()) {
-                    for (const auto& range : option->parameter_ranges[name]) {
+                    for (const auto& range : option->parameter_ranges[name].second) {
                         allowed_ranges.push_back(range.second);
                     }
                 }
