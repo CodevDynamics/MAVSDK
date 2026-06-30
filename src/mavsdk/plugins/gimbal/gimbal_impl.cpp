@@ -1,5 +1,6 @@
 #include "gimbal_impl.h"
 #include "callback_list.tpp"
+#include "mavsdk_export.h"
 #include "math_utils.h"
 #include <algorithm>
 #include <cassert>
@@ -9,7 +10,7 @@
 
 namespace mavsdk {
 
-template class CallbackList<Gimbal::ControlStatus>;
+template class MAVSDK_TEMPL_INST CallbackList<Gimbal::ControlStatus>;
 
 GimbalImpl::GimbalImpl(System& system) : PluginImplBase(system)
 {
@@ -70,7 +71,7 @@ void GimbalImpl::init()
 
 void GimbalImpl::deinit()
 {
-    _system_impl->unregister_all_mavlink_message_handlers(this);
+    _system_impl->unregister_all_mavlink_message_handlers_blocking(this);
 }
 
 void GimbalImpl::enable() {}

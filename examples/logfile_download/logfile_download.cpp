@@ -24,8 +24,8 @@ void usage(const std::string& bin_name)
               << "Connection URL format should be :\n"
               << " For TCP server: tcpin://<our_ip>:<port>\n"
               << " For TCP client: tcpout://<remote_ip>:<port>\n"
-              << " For UDP server: udp://<our_ip>:<port>\n"
-              << " For UDP client: udp://<remote_ip>:<port>\n"
+              << " For UDP server: udpin://<our_ip>:<port>\n"
+              << " For UDP client: udpout://<remote_ip>:<port>\n"
               << " For Serial : serial://</path/to/serial/dev>:<baudrate>]\n"
               << "For example, to connect to the simulator use URL: udpin://0.0.0.0:14540\n"
               << '\n'
@@ -35,7 +35,7 @@ void usage(const std::string& bin_name)
 
 int main(int argc, char** argv)
 {
-    if (argc > 3) {
+    if (argc < 2) {
         usage(argv[0]);
         return 1;
     }
@@ -67,6 +67,12 @@ int main(int argc, char** argv)
 
     auto log_files = LogFiles{system.value()};
 
+    // Determine file extension based on autopilot type
+    std::string file_extension = ".bin"; // Default for ArduPilot and unknown
+    if (system.value()->autopilot_type() == Autopilot::Px4) {
+        file_extension = ".ulg";
+    }
+
     auto get_entries_result = log_files.get_entries();
     if (get_entries_result.first == LogFiles::Result::Success) {
         bool download_failure = false;
@@ -76,11 +82,39 @@ int main(int argc, char** argv)
 
             auto prom = std::promise<LogFiles::Result>{};
             auto future_result = prom.get_future();
+            const auto start_time = std::chrono::steady_clock::now();
             log_files.download_log_file_async(
                 entry,
-                std::string("log-") + entry.date + ".ulg",
-                [&prom](LogFiles::Result result, LogFiles::ProgressData progress) {
-                    if (result != LogFiles::Result::Next) {
+                std::string("log-") + entry.date + file_extension,
+                [&prom, &entry, start_time](
+                    LogFiles::Result result, LogFiles::ProgressData progress) {
+                    if (result == LogFiles::Result::Next) {
+                        const auto now = std::chrono::steady_clock::now();
+                        const double elapsed_s =
+                            std::chrono::duration<double>(now - start_time).count();
+                        const double downloaded = progress.progress * entry.size_bytes;
+                        const double speed = elapsed_s > 0.0 ? downloaded / elapsed_s : 0.0;
+
+                        std::cerr << "\r  " << std::fixed << std::setprecision(1)
+                                  << (progress.progress * 100.0) << "% ("
+                                  << static_cast<unsigned>(downloaded / 1024) << "/"
+                                  << (entry.size_bytes / 1024) << " KiB)"
+                                  << "  " << std::setprecision(1) << (speed / 1024.0)
+                                  << " KiB/s    " << std::flush;
+                    } else {
+                        if (result == LogFiles::Result::Success) {
+                            const auto now = std::chrono::steady_clock::now();
+                            const double elapsed_s =
+                                std::chrono::duration<double>(now - start_time).count();
+                            const double speed =
+                                elapsed_s > 0.0 ? entry.size_bytes / elapsed_s : 0.0;
+                            std::cerr << "\r  100.0% (" << (entry.size_bytes / 1024) << "/"
+                                      << (entry.size_bytes / 1024) << " KiB)"
+                                      << "  " << std::fixed << std::setprecision(1)
+                                      << (speed / 1024.0) << " KiB/s"
+                                      << "  done in " << std::setprecision(1) << elapsed_s
+                                      << "s    " << std::endl;
+                        }
                         prom.set_value(result);
                     }
                 });

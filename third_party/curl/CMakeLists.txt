@@ -10,6 +10,10 @@ list(APPEND CMAKE_ARGS
     "-DCMAKE_POSITION_INDEPENDENT_CODE=ON"
     "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
     "-DCURL_USE_OPENSSL=ON"
+    # Use superbuild OpenSSL, not system pkg-config (headers/libs must match).
+    "-DCURL_USE_PKGCONFIG=OFF"
+    "-DOPENSSL_ROOT_DIR=${CMAKE_INSTALL_PREFIX}"
+    "-DOPENSSL_USE_STATIC_LIBS=ON"
     "-DCURL_USE_LIBSSH2=OFF"
     "-DCURL_USE_LIBPSL=OFF"
     "-DBUILD_CURL_EXE=OFF"
@@ -58,7 +62,7 @@ endforeach()
 ExternalProject_add(
     curl
     GIT_REPOSITORY https://github.com/curl/curl.git
-    GIT_TAG curl-8_13_0
+    GIT_TAG curl-8_16_0
     GIT_SHALLOW ON
     PREFIX curl
     CMAKE_ARGS "${CMAKE_ARGS}"

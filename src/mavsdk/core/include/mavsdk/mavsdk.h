@@ -6,6 +6,8 @@
 #include <vector>
 #include <functional>
 
+#include "autopilot.h"
+#include "compatibility_mode.h"
 #include "deprecated.h"
 #include "handle.h"
 #include "system.h"
@@ -13,6 +15,7 @@
 #include "server_component.h"
 #include "connection_result.h"
 #include "mavlink_include.h"
+#include "mavsdk_export.h"
 
 namespace mavsdk {
 
@@ -36,7 +39,7 @@ class MavsdkImpl;
  * An instance of this class must be created and kept alive in order to use the library.
  * The instance can be destroyed after use in order to break connections and release all resources.
  */
-class Mavsdk {
+class MAVSDK_PUBLIC Mavsdk {
 public:
     /**
      * @brief Returns the version of MAVSDK.
@@ -187,7 +190,7 @@ public:
     /**
      * @brief Possible configurations.
      */
-    class Configuration {
+    class MAVSDK_PUBLIC Configuration {
     public:
         /**
          * @brief Create new Configuration via manually configured
@@ -262,6 +265,41 @@ public:
          */
         void set_mav_type(uint8_t mav_type);
 
+        /**
+         * @brief Get the autopilot type for server identification in heartbeats.
+         * @return The autopilot type used in outgoing heartbeats.
+         */
+        Autopilot get_autopilot() const;
+
+        /**
+         * @brief Set the autopilot type for server identification.
+         *
+         * When MAVSDK acts as an autopilot server, this determines
+         * the MAV_AUTOPILOT value sent in heartbeats.
+         *
+         * Default: Autopilot::Unknown (maps to MAV_AUTOPILOT_GENERIC)
+         */
+        void set_autopilot(Autopilot autopilot);
+
+        /**
+         * @brief Get the compatibility mode.
+         * @return The current compatibility mode.
+         */
+        CompatibilityMode get_compatibility_mode() const;
+
+        /**
+         * @brief Set the compatibility mode.
+         *
+         * This determines which autopilot-specific quirks are used:
+         * - Auto: Use detected autopilot (default, current behavior)
+         * - Pure: Pure standard MAVLink, no autopilot-specific quirks
+         * - Px4: Force PX4 quirks regardless of detection
+         * - ArduPilot: Force ArduPilot quirks regardless of detection
+         *
+         * Default: CompatibilityMode::Auto
+         */
+        void set_compatibility_mode(CompatibilityMode mode);
+
     private:
         uint8_t _system_id;
         uint8_t _component_id;
@@ -269,9 +307,10 @@ public:
         bool _disable_send_heartbeats{false};
         ComponentType _component_type;
         MAV_TYPE _mav_type;
+        Autopilot _autopilot{Autopilot::Unknown};
+        CompatibilityMode _compatibility_mode{CompatibilityMode::Auto};
 
         static ComponentType component_type_for_component_id(uint8_t component_id);
-        static MAV_TYPE mav_type_for_component_type(ComponentType component_type);
     };
 
     /**
@@ -319,6 +358,48 @@ public:
      * need to be increased to prevent timeouts.
      */
     void set_timeout_s(double timeout_s);
+
+    /**
+     * @brief Set heartbeat timeout.
+     *
+     * The default heartbeat timeout is 3 seconds. If no heartbeat is received
+     * within this time, the system is considered disconnected.
+     *
+     * @param timeout_s Timeout in seconds.
+     */
+    void set_heartbeat_timeout_s(double timeout_s);
+
+    /**
+     * @brief Get heartbeat timeout.
+     *
+     * @return Timeout in seconds.
+     */
+    double get_heartbeat_timeout_s() const;
+
+    /**
+     * @brief Set a custom callback executor.
+     *
+     * By default, MAVSDK runs all user callbacks on an internal thread.
+     * Setting a custom executor replaces this: the executor function is called
+     * for each pending callback, and the internal callback thread is stopped.
+     *
+     * The executor is called from MAVSDK's internal work thread, so it must
+     * be fast (e.g., just post/queue the callback for later execution).
+     *
+     * This is useful for integrating with an existing event loop or ensuring
+     * callbacks run on a specific thread.
+     *
+     * @note When a custom executor is set, blocking/synchronous APIs (e.g.,
+     *       first_autopilot(), or any sync plugin method) must not be called
+     *       from the thread that drains the executor queue, as they internally
+     *       wait for a callback that the blocked thread would need to process.
+     *       Use async APIs and drain callbacks in your event loop instead,
+     *       or call sync APIs from a separate thread.
+     *
+     * @param executor Function that will be called with each callback to execute.
+     *                 Pass nullptr/empty to revert to the default internal thread.
+     */
+    void set_callback_executor(std::function<void(std::function<void()>)> executor);
 
     /**
      * @brief Callback type discover and timeout notifications.
@@ -465,6 +546,53 @@ public:
      *        To drop a message, return 'false' from the callback.
      */
     void intercept_outgoing_messages_async(std::function<bool(mavlink_message_t&)> callback);
+
+    /**
+     * @brief Callback type for raw bytes subscriptions.
+     */
+    using RawBytesCallback = std::function<void(const char* bytes, size_t length)>;
+
+    /**
+     * @brief Handle type for raw bytes subscriptions.
+     */
+    using RawBytesHandle = Handle<const char*, size_t>;
+
+    /**
+     * @brief Pass received raw MAVLink bytes.
+     *
+     * This allows passing raw MAVLink message bytes into MAVSDK to be processed.
+     * The bytes can contain one or more MAVLink messages.
+     *
+     * @note Before using this, run add_any_connection("raw://")
+     *
+     * This goes together with subscribe_raw_bytes_to_be_sent.
+     *
+     * @param bytes Pointer to raw MAVLink message bytes.
+     * @param length Number of bytes to send.
+     */
+    void pass_received_raw_bytes(const char* bytes, size_t length);
+
+    /**
+     * @brief Subscribe to raw bytes to be sent.
+     *
+     * This allows getting MAVLink bytes that need to be sent out.
+     *
+     * @note Before using this, run add_any_connection("raw://")
+     *
+     * This goes together with pass_received_raw_bytes.
+     * The bytes contain one mavlink message at a time.
+     *
+     * @param callback Callback to be called with outgoing raw bytes.
+     * @return Handle to unsubscribe again.
+     */
+    RawBytesHandle subscribe_raw_bytes_to_be_sent(RawBytesCallback callback);
+
+    /**
+     * @brief Unsubscribe from raw bytes to be sent.
+     *
+     * @param handle Handle from subscribe_raw_bytes_to_be_sent.
+     */
+    void unsubscribe_raw_bytes_to_be_sent(RawBytesHandle handle);
 
 private:
     static constexpr int DEFAULT_SYSTEM_ID_AUTOPILOT = 1;

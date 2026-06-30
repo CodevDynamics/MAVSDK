@@ -8,10 +8,11 @@
 #include "log.h"
 #include "connection.h"
 #include "callback_list.tpp"
+#include "mavsdk_export.h"
 
 namespace mavsdk {
 
-template class CallbackList<MavlinkDirect::MavlinkMessage>;
+template class MAVSDK_TEMPL_INST CallbackList<MavlinkDirect::MavlinkMessage>;
 
 MavlinkDirectImpl::MavlinkDirectImpl(System& system) : PluginImplBase(system)
 {
@@ -54,10 +55,8 @@ void MavlinkDirectImpl::init()
             mavlink_direct_message.target_component_id = message.target_component_id;
             mavlink_direct_message.fields_json = message.fields_json;
 
-            // Distribute to all internal subscribers
-            _callbacks.queue(mavlink_direct_message, [this](const std::function<void()>& func) {
-                _system_impl->call_user_callback(func);
-            });
+            // Call callbacks directly, queueing needs to happen in the user APIs
+            _callbacks(mavlink_direct_message);
         });
 }
 
@@ -154,16 +153,16 @@ MavlinkDirect::MessageHandle MavlinkDirectImpl::subscribe_message(
     std::string message_name, const MavlinkDirect::MessageCallback& callback)
 {
     // Add filtering callback to internal CallbackList
-    auto filtering_callback = [message_name,
-                               callback](const MavlinkDirect::MavlinkMessage& message) {
-        // Apply message filtering (empty string means all messages)
-        if (!message_name.empty() && message_name != message.message_name) {
-            return;
-        }
+    auto filtering_callback =
+        [this, message_name, callback](const MavlinkDirect::MavlinkMessage& message) {
+            // Apply message filtering (empty string means all messages)
+            if (!message_name.empty() && message_name != message.message_name) {
+                return;
+            }
 
-        // Call user callback for matching messages
-        callback(message);
-    };
+            // Queue user callback to user callback thread
+            _system_impl->call_user_callback([callback, message]() { callback(message); });
+        };
 
     // Subscribe to internal CallbackList and return handle directly
     return _callbacks.subscribe(filtering_callback);
@@ -233,37 +232,20 @@ bool MavlinkDirectImpl::json_to_libmav_message(
         const Json::Value& field_value = json[field_name];
 
         // Convert JSON values to appropriate types and set in message
-        if (field_value.isInt()) {
-            auto result = msg.set(field_name, static_cast<int32_t>(field_value.asInt()));
+        // libmav handles type casting based on field definition, so we just need to pass
+        // int64/uint64
+        if (field_value.isInt() || field_value.isInt64()) {
+            int64_t value = field_value.asInt64();
+            auto result = msg.set(field_name, value);
             if (result != ::mav::MessageResult::Success) {
-                // Try as other integer types
-                if (msg.set(field_name, static_cast<uint32_t>(field_value.asUInt())) !=
-                        ::mav::MessageResult::Success &&
-                    msg.set(field_name, static_cast<int16_t>(field_value.asInt())) !=
-                        ::mav::MessageResult::Success &&
-                    msg.set(field_name, static_cast<uint16_t>(field_value.asUInt())) !=
-                        ::mav::MessageResult::Success &&
-                    msg.set(field_name, static_cast<int8_t>(field_value.asInt())) !=
-                        ::mav::MessageResult::Success &&
-                    msg.set(field_name, static_cast<uint8_t>(field_value.asUInt())) !=
-                        ::mav::MessageResult::Success) {
-                    LogWarn() << "Failed to set integer field " << field_name << " = "
-                              << field_value.asInt();
-                }
+                LogWarn() << "Failed to set integer field " << field_name << " = " << value;
             }
-        } else if (field_value.isUInt()) {
-            auto result = msg.set(field_name, static_cast<uint32_t>(field_value.asUInt()));
+        } else if (field_value.isUInt() || field_value.isUInt64()) {
+            uint64_t value = field_value.asUInt64();
+            auto result = msg.set(field_name, value);
             if (result != ::mav::MessageResult::Success) {
-                // Try as other unsigned integer types
-                if (msg.set(field_name, static_cast<uint64_t>(field_value.asUInt64())) !=
-                        ::mav::MessageResult::Success &&
-                    msg.set(field_name, static_cast<uint16_t>(field_value.asUInt())) !=
-                        ::mav::MessageResult::Success &&
-                    msg.set(field_name, static_cast<uint8_t>(field_value.asUInt())) !=
-                        ::mav::MessageResult::Success) {
-                    LogWarn() << "Failed to set unsigned integer field " << field_name << " = "
-                              << field_value.asUInt();
-                }
+                LogWarn() << "Failed to set unsigned integer field " << field_name << " = "
+                          << value;
             }
         } else if (field_value.isNull() || field_value.isDouble()) {
             // Handle float/double values (including null -> NaN)

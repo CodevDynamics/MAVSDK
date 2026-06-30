@@ -4,6 +4,7 @@
 #include <memory>
 #include "curl_include.h"
 #include "curl_wrapper_types.h"
+#include "mavsdk_export.h"
 
 #ifdef TESTING
 #include <gmock/gmock.h>
@@ -12,7 +13,7 @@ using namespace testing;
 
 namespace mavsdk {
 
-class ICurlWrapper {
+class MAVSDK_TEST_EXPORT ICurlWrapper {
 public:
     ICurlWrapper() = default;
     virtual ~ICurlWrapper() = default;
@@ -27,7 +28,7 @@ public:
         const ProgressCallback& progress_callback) = 0;
 };
 
-class CurlWrapper : public ICurlWrapper {
+class MAVSDK_TEST_EXPORT CurlWrapper : public ICurlWrapper {
 public:
     // ICurlWrapper
     CurlWrapper() = default;
@@ -54,6 +55,12 @@ public:
     MOCK_METHOD2(download_text, bool(const std::string& url, std::string& content));
     MOCK_METHOD3(
         download_file_to_path,
+        bool(
+            const std::string& url,
+            const std::string& path,
+            const ProgressCallback& progress_callback));
+    MOCK_METHOD3(
+        upload_file,
         bool(
             const std::string& url,
             const std::string& path,

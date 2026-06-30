@@ -1,4 +1,5 @@
 add_executable(system_tests_runner
+    camera_definition.cpp
     camera_mode.cpp
     camera_take_photo.cpp
     camera_take_photo_interval.cpp
@@ -14,7 +15,11 @@ add_executable(system_tests_runner
     param_custom_set_and_get.cpp
     param_get_all.cpp
     mission_raw_upload.cpp
+    mission_raw_upload_empty.cpp
     telemetry_subscription.cpp
+    telemetry_timestamp.cpp
+    telemetry_rc_status.cpp
+    geofence_download.cpp
     fs_helpers.cpp
     ftp_download_file.cpp
     ftp_download_file_burst.cpp
@@ -28,6 +33,12 @@ add_executable(system_tests_runner
     intercept.cpp
     mavlink_direct.cpp
     mavlink_direct_forwarding.cpp
+    mavlink_seq.cpp
+    mission_cancellation.cpp
+    mission_changed.cpp
+    mission_transfer_lossy.cpp
+    connections.cpp
+    raw_bytes.cpp
     system_tests_runner.cpp
 )
 
@@ -52,6 +63,10 @@ target_link_libraries(system_tests_runner
 set_target_properties(system_tests_runner
     PROPERTIES COMPILE_FLAGS ${warnings}
 )
+
+if(NOT APPLE AND NOT ANDROID AND NOT MSVC)
+    target_link_libraries(system_tests_runner PRIVATE stdc++fs)
+endif()
 
 if(ENABLE_CPPTRACE)
     find_package(cpptrace REQUIRED)

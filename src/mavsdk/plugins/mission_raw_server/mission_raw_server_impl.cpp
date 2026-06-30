@@ -1,12 +1,14 @@
 #include "mission_raw_server_impl.h"
 #include "callback_list.tpp"
+#include "mavsdk_export.h"
 #include "mavlink_address.h"
 
 namespace mavsdk {
 
-template class CallbackList<MissionRawServer::Result, MissionRawServer::MissionPlan>;
-template class CallbackList<MissionRawServer::MissionItem>;
-template class CallbackList<uint32_t>;
+template class MAVSDK_TEMPL_INST
+    CallbackList<MissionRawServer::Result, MissionRawServer::MissionPlan>;
+template class MAVSDK_TEMPL_INST CallbackList<MissionRawServer::MissionItem>;
+template class MAVSDK_TEMPL_INST CallbackList<uint32_t>;
 
 MissionRawServerImpl::MissionRawServerImpl(std::shared_ptr<ServerComponent> server_component) :
     ServerPluginImplBase(server_component)
@@ -159,7 +161,7 @@ void MissionRawServerImpl::init()
 
 void MissionRawServerImpl::deinit()
 {
-    _server_component_impl->unregister_all_mavlink_message_handlers(this);
+    _server_component_impl->unregister_all_mavlink_message_handlers_blocking(this);
 }
 
 void MissionRawServerImpl::process_mission_count(const mavlink_message_t& message)
@@ -203,7 +205,9 @@ void MissionRawServerImpl::process_mission_count(const mavlink_message_t& messag
             // Reset mission state after receiving because the previous mission is now inactive.
             if (type == MAV_MISSION_TYPE_MISSION) {
                 _mission_completed = false;
-                set_current_seq(0);
+                if (!items.empty()) {
+                    set_current_seq(0);
+                }
             }
         });
 }
@@ -410,15 +414,15 @@ void MissionRawServerImpl::set_current_item_complete()
 
 void MissionRawServerImpl::set_current_seq(std::size_t seq)
 {
-    if (_current_mission.size() < static_cast<size_t>(seq) || _current_mission.empty()) {
+    if (_current_mission.empty() || seq > _current_mission.size()) {
         return;
     }
 
     _current_seq = seq;
 
     // If mission is over, just set item to last one again
-    auto item = seq == _current_mission.size() ? _current_mission.back() :
-                                                 _current_mission.at(_current_seq);
+    auto index = (seq >= _current_mission.size()) ? _current_mission.size() - 1 : seq;
+    auto item = _current_mission.at(index);
     auto converted_item = convert_item(item);
     _current_item_changed_callbacks.queue(converted_item, [this](const auto& func) {
         _server_component_impl->call_user_callback(func);

@@ -23,27 +23,37 @@ namespace mavsdk {
 std::string GetLastErrorStdStr()
 {
     DWORD error = GetLastError();
-    if (error) {
-        LPVOID lpMsgBuf;
-        DWORD bufLen = FormatMessage(
-            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
-                FORMAT_MESSAGE_IGNORE_INSERTS,
-            NULL,
-            error,
-            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-            (LPTSTR)&lpMsgBuf,
-            0,
-            NULL);
-        if (bufLen) {
-            LPCSTR lpMsgStr = (LPCSTR)lpMsgBuf;
-            std::string result(lpMsgStr, lpMsgStr + bufLen);
-
-            LocalFree(lpMsgBuf);
-
-            return result;
-        }
+    if (error == 0) {
+        return "";
     }
-    return std::string();
+
+    LPVOID lpMsgBuf = nullptr;
+    DWORD bufLen = FormatMessage(
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL,
+        error,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        (LPTSTR)&lpMsgBuf,
+        0,
+        NULL);
+
+    if (bufLen) {
+        LPCSTR lpMsgStr = (LPCSTR)lpMsgBuf;
+        std::string result(lpMsgStr, lpMsgStr + bufLen);
+        LocalFree(lpMsgBuf);
+
+        // Remove trailing newline if present
+        if (!result.empty() && result[result.length() - 1] == '\n') {
+            result.erase(result.length() - 1);
+        }
+        if (!result.empty() && result[result.length() - 1] == '\r') {
+            result.erase(result.length() - 1);
+        }
+
+        return result;
+    }
+
+    return std::to_string(error);
 }
 #endif
 
@@ -305,9 +315,11 @@ void SerialConnection::receive()
             continue;
         }
         _mavlink_receiver->set_new_datagram(buffer, recv_len);
-        // Parse all mavlink messages in one data packet. Once exhausted, we'll exit while.
-        while (_mavlink_receiver->parse_message()) {
-            receive_message(_mavlink_receiver->get_last_message(), this);
+        // Parse all mavlink messages in one data packet. Once exhausted, we'll exit loop.
+        auto parse_result = _mavlink_receiver->parse_message();
+        while (parse_result != MavlinkReceiver::ParseResult::NoneAvailable) {
+            receive_message(parse_result, _mavlink_receiver->get_last_message(), this);
+            parse_result = _mavlink_receiver->parse_message();
         }
 
         // Also parse with libmav if available

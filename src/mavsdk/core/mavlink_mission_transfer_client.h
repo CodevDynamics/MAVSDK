@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <functional>
@@ -15,10 +16,11 @@
 #include "timeout_s_callback.h"
 #include "locked_queue.h"
 #include "sender.h"
+#include "mavsdk_export.h"
 
 namespace mavsdk {
 
-class MavlinkMissionTransferClient {
+class MAVSDK_TEST_EXPORT MavlinkMissionTransferClient {
 public:
     enum class Result {
         Success,
@@ -316,7 +318,7 @@ private:
 
     LockedQueue<WorkItem> _work_queue{};
 
-    bool _int_messages_supported{true};
+    std::atomic<bool> _int_messages_supported{true};
     bool _debugging{false};
 };
 

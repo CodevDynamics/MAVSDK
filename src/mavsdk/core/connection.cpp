@@ -5,6 +5,10 @@
 #include "mavsdk_impl.h"
 #include "log.h"
 
+#ifdef WINDOWS
+#include <winsock2.h>
+#endif
+
 namespace mavsdk {
 
 std::atomic<unsigned> Connection::_forwarding_connections_count = 0;
@@ -94,7 +98,8 @@ void Connection::receive_libmav_message(
     }
 }
 
-void Connection::receive_message(mavlink_message_t& message, Connection* connection)
+void Connection::receive_message(
+    MavlinkReceiver::ParseResult result, mavlink_message_t& message, Connection* connection)
 {
     if(message.msgid == MAVLINK_MSG_ID_PING && message.compid == MAV_COMP_ID_UDP_BRIDGE) {
         mavlink_ping_t ping;
@@ -111,14 +116,18 @@ void Connection::receive_message(mavlink_message_t& message, Connection* connect
             send_message(msg);
         }
     }
-    // Register system ID when receiving a message from a new system.
-    if (_system_ids.find(message.sysid) == _system_ids.end()) {
-        _system_ids.insert(message.sysid);
+    // Register system ID for valid messages
+    if (result == MavlinkReceiver::ParseResult::MessageParsed) {
+        std::lock_guard<std::mutex> lock(_system_ids_mutex);
+        if (_system_ids.find(message.sysid) == _system_ids.end()) {
+            _system_ids.insert(message.sysid);
+        }
+        if (_component_ids.find(message.compid) == _component_ids.end()) {
+            _component_ids.insert(message.compid);
+        }
     }
-    if (_component_ids.find(message.compid) == _component_ids.end()) {
-        _component_ids.insert(message.compid);
-    }
-    _receiver_callback(message, connection);
+    // Let MavsdkImpl handle the ParseResult (queue for processing or forward-only)
+    _receiver_callback(result, message, connection);
 }
 
 bool Connection::should_forward_messages() const
@@ -133,12 +142,50 @@ unsigned Connection::forwarding_connections_count()
 
 bool Connection::has_system_id(uint8_t system_id)
 {
+    std::lock_guard<std::mutex> lock(_system_ids_mutex);
     return _system_ids.find(system_id) != _system_ids.end();
 }
 
 bool Connection::has_component_id(uint8_t component_id)
 {
+    std::lock_guard<std::mutex> lock(_system_ids_mutex);
     return _component_ids.find(component_id) != _component_ids.end();
 }
+#ifdef WINDOWS
+std::string get_socket_error_string(int error_code)
+{
+    if (error_code == 0) {
+        return "";
+    }
+
+    LPVOID lpMsgBuf = nullptr;
+    DWORD bufLen = FormatMessage(
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL,
+        error_code,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        (LPTSTR)&lpMsgBuf,
+        0,
+        NULL);
+
+    if (bufLen) {
+        LPCSTR lpMsgStr = (LPCSTR)lpMsgBuf;
+        std::string result(lpMsgStr, lpMsgStr + bufLen);
+        LocalFree(lpMsgBuf);
+
+        // Remove trailing newline if present
+        if (!result.empty() && result[result.length() - 1] == '\n') {
+            result.erase(result.length() - 1);
+        }
+        if (!result.empty() && result[result.length() - 1] == '\r') {
+            result.erase(result.length() - 1);
+        }
+
+        return result;
+    }
+
+    return std::to_string(error_code);
+}
+#endif
 
 } // namespace mavsdk

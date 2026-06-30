@@ -2,6 +2,7 @@
 #include "system.h"
 #include "math_utils.h"
 #include "callback_list.tpp"
+#include "mavsdk_export.h"
 
 #include <cmath>
 #include <functional>
@@ -12,34 +13,34 @@
 
 namespace mavsdk {
 
-template class CallbackList<Telemetry::PositionVelocityNed>;
-template class CallbackList<Telemetry::Position>;
-template class CallbackList<bool>;
-template class CallbackList<Telemetry::StatusText>;
-template class CallbackList<Telemetry::Quaternion>;
-template class CallbackList<Telemetry::AngularVelocityBody>;
-template class CallbackList<Telemetry::GroundTruth>;
-template class CallbackList<Telemetry::FixedwingMetrics>;
-template class CallbackList<Telemetry::EulerAngle>;
-template class CallbackList<Telemetry::VelocityNed>;
-template class CallbackList<Telemetry::Imu>;
-template class CallbackList<Telemetry::GpsInfo>;
-template class CallbackList<Telemetry::RawGps>;
-template class CallbackList<Telemetry::Battery>;
-template class CallbackList<Telemetry::FlightMode>;
-template class CallbackList<Telemetry::Health>;
-template class CallbackList<Telemetry::VtolState>;
-template class CallbackList<Telemetry::LandedState>;
-template class CallbackList<Telemetry::RcStatus>;
-template class CallbackList<uint64_t>;
-template class CallbackList<Telemetry::ActuatorControlTarget>;
-template class CallbackList<Telemetry::ActuatorOutputStatus>;
-template class CallbackList<Telemetry::Odometry>;
-template class CallbackList<Telemetry::DistanceSensor>;
-template class CallbackList<Telemetry::ScaledPressure>;
-template class CallbackList<Telemetry::Heading>;
-template class CallbackList<Telemetry::Altitude>;
-template class CallbackList<Telemetry::Wind>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::PositionVelocityNed>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::Position>;
+template class MAVSDK_TEMPL_INST CallbackList<bool>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::StatusText>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::Quaternion>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::AngularVelocityBody>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::GroundTruth>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::FixedwingMetrics>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::EulerAngle>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::VelocityNed>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::Imu>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::GpsInfo>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::RawGps>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::Battery>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::FlightMode>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::Health>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::VtolState>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::LandedState>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::RcStatus>;
+template class MAVSDK_TEMPL_INST CallbackList<uint64_t>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::ActuatorControlTarget>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::ActuatorOutputStatus>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::Odometry>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::DistanceSensor>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::ScaledPressure>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::Heading>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::Altitude>;
+template class MAVSDK_TEMPL_INST CallbackList<Telemetry::Wind>;
 
 TelemetryImpl::TelemetryImpl(System& system) : PluginImplBase(system)
 {
@@ -188,7 +189,8 @@ void TelemetryImpl::init()
 void TelemetryImpl::deinit()
 {
     _system_impl->unregister_statustext_handler(this);
-    _system_impl->unregister_all_mavlink_message_handlers(this);
+    // Use blocking version to ensure any in-flight callbacks complete before destruction.
+    _system_impl->unregister_all_mavlink_message_handlers_blocking(this);
 }
 
 void TelemetryImpl::enable()
@@ -315,8 +317,18 @@ Telemetry::Result TelemetryImpl::set_rate_ground_truth(double rate_hz)
 
 Telemetry::Result TelemetryImpl::set_rate_gps_info(double rate_hz)
 {
+    _gps_info_rate_hz = rate_hz;
+    double max_rate_hz = std::max(_gps_info_rate_hz, _raw_gps_rate_hz);
     return telemetry_result_from_command_result(
-        _system_impl->set_msg_rate(MAVLINK_MSG_ID_GPS_RAW_INT, rate_hz));
+        _system_impl->set_msg_rate(MAVLINK_MSG_ID_GPS_RAW_INT, max_rate_hz));
+}
+
+Telemetry::Result TelemetryImpl::set_rate_raw_gps(double rate_hz)
+{
+    _raw_gps_rate_hz = rate_hz;
+    double max_rate_hz = std::max(_gps_info_rate_hz, _raw_gps_rate_hz);
+    return telemetry_result_from_command_result(
+        _system_impl->set_msg_rate(MAVLINK_MSG_ID_GPS_RAW_INT, max_rate_hz));
 }
 
 Telemetry::Result TelemetryImpl::set_rate_battery(double rate_hz)
@@ -327,9 +339,27 @@ Telemetry::Result TelemetryImpl::set_rate_battery(double rate_hz)
 
 Telemetry::Result TelemetryImpl::set_rate_rc_status(double rate_hz)
 {
-    UNUSED(rate_hz);
-    LogWarn() << "System status is usually fixed at 1 Hz";
-    return Telemetry::Result::Unsupported;
+    _rc_status_rate_hz = rate_hz;
+
+    // On PX4, RC data comes via RC_CHANNELS. On ArduPilot, it comes via SYS_STATUS.
+    if (_system_impl->effective_autopilot() == Autopilot::ArduPilot) {
+        return set_rate_sys_status();
+    }
+
+    // For PX4 (or unknown), request RC_CHANNELS and also update SYS_STATUS if needed.
+    auto result = telemetry_result_from_command_result(
+        _system_impl->set_msg_rate(MAVLINK_MSG_ID_RC_CHANNELS, rate_hz));
+    if (result != Telemetry::Result::Success) {
+        return result;
+    }
+    return set_rate_sys_status();
+}
+
+Telemetry::Result TelemetryImpl::set_rate_sys_status()
+{
+    double max_rate_hz = std::max(_health_rate_hz, _rc_status_rate_hz);
+    return telemetry_result_from_command_result(
+        _system_impl->set_msg_rate(MAVLINK_MSG_ID_SYS_STATUS, max_rate_hz));
 }
 
 Telemetry::Result TelemetryImpl::set_rate_actuator_control_target(double rate_hz)
@@ -376,8 +406,8 @@ Telemetry::Result TelemetryImpl::set_rate_altitude(double rate_hz)
 
 Telemetry::Result TelemetryImpl::set_rate_health(double rate_hz)
 {
-    return telemetry_result_from_command_result(
-        _system_impl->set_msg_rate(MAVLINK_MSG_ID_SYS_STATUS, rate_hz));
+    _health_rate_hz = rate_hz;
+    return set_rate_sys_status();
 }
 
 void TelemetryImpl::set_rate_position_velocity_ned_async(
@@ -446,9 +476,11 @@ void TelemetryImpl::set_rate_altitude_async(double rate_hz, Telemetry::ResultCal
 
 void TelemetryImpl::set_rate_health_async(double rate_hz, Telemetry::ResultCallback callback)
 {
+    _health_rate_hz = rate_hz;
+    double max_rate_hz = std::max(_health_rate_hz, _rc_status_rate_hz);
     _system_impl->set_msg_rate_async(
         MAVLINK_MSG_ID_SYS_STATUS,
-        rate_hz,
+        max_rate_hz,
         [callback](MavlinkCommandSender::Result command_result, float) {
             command_result_callback(command_result, callback);
         });
@@ -542,9 +574,23 @@ void TelemetryImpl::set_rate_ground_truth_async(double rate_hz, Telemetry::Resul
 
 void TelemetryImpl::set_rate_gps_info_async(double rate_hz, Telemetry::ResultCallback callback)
 {
+    _gps_info_rate_hz = rate_hz;
+    double max_rate_hz = std::max(_gps_info_rate_hz, _raw_gps_rate_hz);
     _system_impl->set_msg_rate_async(
         MAVLINK_MSG_ID_GPS_RAW_INT,
-        rate_hz,
+        max_rate_hz,
+        [callback](MavlinkCommandSender::Result command_result, float) {
+            command_result_callback(command_result, callback);
+        });
+}
+
+void TelemetryImpl::set_rate_raw_gps_async(double rate_hz, Telemetry::ResultCallback callback)
+{
+    _raw_gps_rate_hz = rate_hz;
+    double max_rate_hz = std::max(_gps_info_rate_hz, _raw_gps_rate_hz);
+    _system_impl->set_msg_rate_async(
+        MAVLINK_MSG_ID_GPS_RAW_INT,
+        max_rate_hz,
         [callback](MavlinkCommandSender::Result command_result, float) {
             command_result_callback(command_result, callback);
         });
@@ -562,16 +608,43 @@ void TelemetryImpl::set_rate_battery_async(double rate_hz, Telemetry::ResultCall
 
 void TelemetryImpl::set_rate_rc_status_async(double rate_hz, Telemetry::ResultCallback callback)
 {
-    UNUSED(rate_hz);
-    LogWarn() << "System status is usually fixed at 1 Hz";
-    _system_impl->call_user_callback([callback]() { callback(Telemetry::Result::Unsupported); });
+    _rc_status_rate_hz = rate_hz;
+    double max_rate_hz = std::max(_health_rate_hz, _rc_status_rate_hz);
+
+    if (_system_impl->effective_autopilot() == Autopilot::ArduPilot) {
+        // ArduPilot reports RC status via SYS_STATUS
+        _system_impl->set_msg_rate_async(
+            MAVLINK_MSG_ID_SYS_STATUS,
+            max_rate_hz,
+            [callback](MavlinkCommandSender::Result command_result, float) {
+                command_result_callback(command_result, callback);
+            });
+    } else {
+        // PX4 reports RC data via RC_CHANNELS
+        _system_impl->set_msg_rate_async(
+            MAVLINK_MSG_ID_RC_CHANNELS,
+            rate_hz,
+            [this, callback, max_rate_hz](MavlinkCommandSender::Result command_result, float) {
+                if (command_result != MavlinkCommandSender::Result::Success) {
+                    command_result_callback(command_result, callback);
+                    return;
+                }
+                // Also update SYS_STATUS rate
+                _system_impl->set_msg_rate_async(
+                    MAVLINK_MSG_ID_SYS_STATUS,
+                    max_rate_hz,
+                    [callback](MavlinkCommandSender::Result command_result2, float) {
+                        command_result_callback(command_result2, callback);
+                    });
+            });
+    }
 }
 
 void TelemetryImpl::set_rate_unix_epoch_time_async(
     double rate_hz, Telemetry::ResultCallback callback)
 {
     _system_impl->set_msg_rate_async(
-        MAVLINK_MSG_ID_UTM_GLOBAL_POSITION,
+        MAVLINK_MSG_ID_SYSTEM_TIME,
         rate_hz,
         [callback](MavlinkCommandSender::Result command_result, float) {
             command_result_callback(command_result, callback);
@@ -818,6 +891,7 @@ void TelemetryImpl::process_altitude(const mavlink_message_t& message)
     new_altitude.altitude_relative_m = mavlink_altitude.altitude_relative;
     new_altitude.altitude_terrain_m = mavlink_altitude.altitude_terrain;
     new_altitude.bottom_clearance_m = mavlink_altitude.bottom_clearance;
+    new_altitude.timestamp_us = mavlink_altitude.time_usec;
 
     set_altitude(new_altitude);
 
@@ -998,6 +1072,7 @@ void TelemetryImpl::process_ground_truth(const mavlink_message_t& message)
     new_ground_truth.latitude_deg = hil_state_quaternion.lat * 1e-7;
     new_ground_truth.longitude_deg = hil_state_quaternion.lon * 1e-7;
     new_ground_truth.absolute_altitude_m = hil_state_quaternion.alt * 1e-3f;
+    new_ground_truth.timestamp_us = hil_state_quaternion.time_usec;
 
     set_ground_truth(new_ground_truth);
 
@@ -1092,7 +1167,7 @@ void TelemetryImpl::process_sys_status(const mavlink_message_t& message)
     // PX4 v1.15.3 and previous has the bug that it doesn't set 3D_ACCEL present.
     // Therefore, we ignore that and look at the health flag only.
     if (sys_status.onboard_control_sensors_enabled & MAV_SYS_STATUS_SENSOR_3D_ACCEL ||
-        _system_impl->autopilot() == Autopilot::Px4) {
+        _system_impl->effective_autopilot() == Autopilot::Px4) {
         set_health_accelerometer_calibration(
             sys_status.onboard_control_sensors_health & MAV_SYS_STATUS_SENSOR_3D_ACCEL);
     }

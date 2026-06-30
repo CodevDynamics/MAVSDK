@@ -3,10 +3,11 @@
 #include "plugins/mavlink_passthrough/mavlink_passthrough.h"
 #include "system.h"
 #include "callback_list.tpp"
+#include "mavsdk_export.h"
 
 namespace mavsdk {
 
-template class CallbackList<const mavlink_message_t&>;
+template class MAVSDK_TEMPL_INST CallbackList<const mavlink_message_t&>;
 
 MavlinkPassthroughImpl::MavlinkPassthroughImpl(System& system) : PluginImplBase(system)
 {
@@ -28,7 +29,7 @@ void MavlinkPassthroughImpl::init() {}
 
 void MavlinkPassthroughImpl::deinit()
 {
-    _system_impl->unregister_all_mavlink_message_handlers(this);
+    _system_impl->unregister_all_mavlink_message_handlers_blocking(this);
     _message_subscriptions.clear();
 }
 

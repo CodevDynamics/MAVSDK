@@ -388,42 +388,60 @@ void MavlinkParameterServer::process_param_ext_request_read(const mavlink_messag
 void MavlinkParameterServer::internal_process_param_request_read_by_id(
     const std::string& id, const bool extended)
 {
-    std::lock_guard<std::mutex> lock(_all_params_mutex);
-    const auto param_opt = _param_cache.param_by_id(id, extended);
+    {
+        std::lock_guard<std::mutex> lock(_all_params_mutex);
+        const auto param_opt = _param_cache.param_by_id(id, extended);
 
-    if (!param_opt.has_value()) {
-        LogWarn() << "Ignoring request_read message " << (extended ? "extended " : "")
-                  << "- param name not found: " << id;
-        return;
+        if (!param_opt.has_value()) {
+            LogWarn() << "Ignoring request_read message " << (extended ? "extended " : "")
+                      << "- param name not found: " << id;
+            // Release lock before sending PARAM_ERROR
+        } else {
+            const auto& param = param_opt.value();
+            const auto param_count = _param_cache.count(extended);
+            assert(param.index < param_count);
+            auto new_work = std::make_shared<WorkItem>(
+                param.id, param.value, WorkItemValue{param.index, param_count, extended});
+            _work_queue.push_back(new_work);
+
+            _last_extended = extended;
+            return;
+        }
     }
-    const auto& param = param_opt.value();
-    const auto param_count = _param_cache.count(extended);
-    assert(param.index < param_count);
-    auto new_work = std::make_shared<WorkItem>(
-        param.id, param.value, WorkItemValue{param.index, param_count, extended});
-    _work_queue.push_back(new_work);
 
-    _last_extended = extended;
+    // Send PARAM_ERROR outside the lock
+    if (!extended) {
+        send_param_error(id, -1, 1); // MAV_PARAM_ERROR_DOES_NOT_EXIST = 1
+    }
 }
 
 void MavlinkParameterServer::internal_process_param_request_read_by_index(
     std::uint16_t index, bool extended)
 {
-    std::lock_guard<std::mutex> lock(_all_params_mutex);
-    const auto param_opt = _param_cache.param_by_index(index, extended);
+    {
+        std::lock_guard<std::mutex> lock(_all_params_mutex);
+        const auto param_opt = _param_cache.param_by_index(index, extended);
 
-    if (!param_opt.has_value()) {
-        LogWarn() << "Ignoring request_read message " << (extended ? "extended " : "")
-                  << "- param index not found: " << index;
-        return;
+        if (!param_opt.has_value()) {
+            LogWarn() << "Ignoring request_read message " << (extended ? "extended " : "")
+                      << "- param index not found: " << index;
+            // Release lock before sending PARAM_ERROR
+        } else {
+            const auto& param = param_opt.value();
+            const auto param_count = _param_cache.count(extended);
+
+            assert(param.index < param_count);
+            auto new_work = std::make_shared<WorkItem>(
+                param.id, param.value, WorkItemValue{param.index, param_count, extended});
+            _work_queue.push_back(new_work);
+            return;
+        }
     }
-    const auto& param = param_opt.value();
-    const auto param_count = _param_cache.count(extended);
 
-    assert(param.index < param_count);
-    auto new_work = std::make_shared<WorkItem>(
-        param.id, param.value, WorkItemValue{param.index, param_count, extended});
-    _work_queue.push_back(new_work);
+    // Send PARAM_ERROR outside the lock
+    if (!extended) {
+        send_param_error("", static_cast<int16_t>(index), 1); // MAV_PARAM_ERROR_DOES_NOT_EXIST = 1
+    }
 }
 
 void MavlinkParameterServer::process_param_request_list(const mavlink_message_t& message)
@@ -458,6 +476,10 @@ void MavlinkParameterServer::process_param_ext_request_list(const mavlink_messag
 void MavlinkParameterServer::broadcast_all_parameters(const bool extended)
 {
     std::lock_guard<std::mutex> lock(_all_params_mutex);
+
+    // Param used with index, we should no longer change the index
+    _params_locked_down = true;
+
     const auto all_params = _param_cache.all_parameters(extended);
     if (_parameter_debugging) {
         LogDebug() << "broadcast_all_parameters " << (extended ? "extended" : "") << ": "
@@ -511,7 +533,7 @@ void MavlinkParameterServer::do_work()
                 } else {
                     // LogWarn() << "sending not extended message";
                     float param_value;
-                    if (_sender.autopilot() == Autopilot::ArduPilot) {
+                    if (_sender.compatibility_mode() == CompatibilityMode::ArduPilot) {
                         param_value = work->param_value.get_4_float_bytes_cast();
                     } else {
                         param_value = work->param_value.get_4_float_bytes_bytewise();
@@ -560,6 +582,34 @@ void MavlinkParameterServer::do_work()
                 work_queue_guard.pop_front();
             }},
         work->work_item_variant);
+}
+
+void MavlinkParameterServer::send_param_error(
+    const std::string& param_id, int16_t param_index, uint8_t error_code)
+{
+    if (_parameter_debugging) {
+        LogDebug() << "Sending PARAM_ERROR for " << param_id << " (index: " << param_index
+                   << ") with error code: " << (int)error_code;
+    }
+
+    const auto param_id_buffer = param_id_to_message_buffer(param_id);
+
+    if (!_sender.queue_message([&](MavlinkAddress mavlink_address, uint8_t channel) {
+            mavlink_message_t message;
+            mavlink_msg_param_error_pack_chan(
+                mavlink_address.system_id,
+                mavlink_address.component_id,
+                channel,
+                &message,
+                0, // target_system - 0 for broadcast
+                0, // target_component - 0 for broadcast
+                param_id_buffer.data(),
+                param_index,
+                error_code);
+            return message;
+        })) {
+        LogErr() << "Error: Send PARAM_ERROR message failed";
+    }
 }
 
 std::ostream& operator<<(std::ostream& str, const MavlinkParameterServer::Result& result)
@@ -633,6 +683,13 @@ MavlinkParameterServer::extract_request_read_param_identifier(
         }
         return {static_cast<std::uint16_t>(param_index)};
     }
+}
+
+bool MavlinkParameterServer::params_locked_down() const
+{
+    std::lock_guard<std::mutex> lock(_all_params_mutex);
+
+    return _params_locked_down;
 }
 
 } // namespace mavsdk

@@ -5,6 +5,7 @@
 #include "libmav_receiver.h"
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -15,8 +16,8 @@ class MavsdkImpl; // Forward declaration
 
 class Connection {
 public:
-    using ReceiverCallback =
-        std::function<void(mavlink_message_t& message, Connection* connection)>;
+    using ReceiverCallback = std::function<void(
+        MavlinkReceiver::ParseResult result, mavlink_message_t& message, Connection* connection)>;
     using LibmavReceiverCallback =
         std::function<void(const Mavsdk::MavlinkMessage& message, Connection* connection)>;
 
@@ -50,7 +51,8 @@ public:
 protected:
     bool start_mavlink_receiver();
     void stop_mavlink_receiver();
-    void receive_message(mavlink_message_t& message, Connection* connection);
+    void receive_message(
+        MavlinkReceiver::ParseResult result, mavlink_message_t& message, Connection* connection);
 
     bool start_libmav_receiver();
     void stop_libmav_receiver();
@@ -62,6 +64,7 @@ protected:
     std::unique_ptr<MavlinkReceiver> _mavlink_receiver;
     std::unique_ptr<LibmavReceiver> _libmav_receiver;
     ForwardingOption _forwarding_option;
+    std::mutex _system_ids_mutex;
     std::unordered_set<uint8_t> _system_ids;
     std::unordered_set<uint8_t> _component_ids;
 
@@ -71,5 +74,9 @@ protected:
 
     // void received_mavlink_message(mavlink_message_t &);
 };
+
+#ifdef WINDOWS
+std::string get_socket_error_string(int error_code);
+#endif
 
 } // namespace mavsdk

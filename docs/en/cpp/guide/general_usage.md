@@ -62,6 +62,27 @@ Similarly, other autopilots may well work, but, they are not explicitly supporte
 
 Compatibility with ArduPilot is added piece by piece as functionality is used/tested with it.
 
+### Compatibility Mode {#compatibility_mode}
+
+MAVSDK supports different compatibility modes to handle autopilot-specific behaviors:
+
+- **Auto** (default): Detects the autopilot type from heartbeat messages and applies appropriate quirks for PX4 or ArduPilot.
+- **Pure**: Uses standard MAVLink behavior without autopilot-specific quirks. Useful for testing MAVLink standard compliance of autopilot implementations.
+- **Px4**: Forces PX4-specific behavior regardless of detected autopilot.
+- **ArduPilot**: Forces ArduPilot-specific behavior regardless of detected autopilot.
+
+To set the compatibility mode:
+
+```cpp
+Mavsdk::Configuration config(ComponentType::GroundStation);
+config.set_compatibility_mode(CompatibilityMode::Pure);
+Mavsdk mavsdk(config);
+```
+
+::: info
+In Pure mode, some features that rely on autopilot-specific parameters or protocols will return `Unsupported` (e.g., RTL altitude settings, calibration progress). Flight mode detection may also be limited as it requires MAVLink standard modes support.
+:::
+
 ### Connection Strings {#connection_string}
 
 MAVSDK monitors a specified port for vehicles, see [Connecting to Systems (Vehicles)](../guide/connections.md).
@@ -100,5 +121,5 @@ Not every mission command behaviour supported by the protocol and PX4 will be su
 
 In order to access the full mission API, the [MissionRaw](../api_reference/classmavsdk_1_1_mission_raw.html) plugin can be used instead.
 
-The MissionRaw also allows to [import QGC mission files](https://mavsdk.mavlink.io/main/en/cpp/api_reference/classmavsdk_1_1_mission_raw.html#classmavsdk_1_1_mission_raw_1a2a4ca261c37737e691c6954693d6d0a5).
+The MissionRaw also allows to [import QGC mission files](https://mavsdk.mavlink.io/v3/en/cpp/api_reference/classmavsdk_1_1_mission_raw.html#classmavsdk_1_1_mission_raw_1a2a4ca261c37737e691c6954693d6d0a5).
 

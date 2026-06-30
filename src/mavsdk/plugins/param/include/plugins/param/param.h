@@ -16,6 +16,7 @@
 #include "plugin_base.h"
 
 #include "handle.h"
+#include "mavsdk_export.h"
 
 namespace mavsdk {
 
@@ -25,7 +26,7 @@ class ParamImpl;
 /**
  * @brief Provide raw access to get and set parameters.
  */
-class Param : public PluginBase {
+class MAVSDK_PUBLIC Param : public PluginBase {
 public:
     /**
      * @brief Constructor. Creates the plugin for a specific System.
@@ -71,7 +72,7 @@ public:
      *
      * @return A reference to the stream.
      */
-    friend std::ostream&
+    friend MAVSDK_PUBLIC std::ostream&
     operator<<(std::ostream& str, Param::ProtocolVersion const& protocol_version);
 
     /**
@@ -87,14 +88,15 @@ public:
      *
      * @return `true` if items are equal.
      */
-    friend bool operator==(const Param::IntParam& lhs, const Param::IntParam& rhs);
+    friend MAVSDK_PUBLIC bool operator==(const Param::IntParam& lhs, const Param::IntParam& rhs);
 
     /**
      * @brief Stream operator to print information about a `Param::IntParam`.
      *
      * @return A reference to the stream.
      */
-    friend std::ostream& operator<<(std::ostream& str, Param::IntParam const& int_param);
+    friend MAVSDK_PUBLIC std::ostream&
+    operator<<(std::ostream& str, Param::IntParam const& int_param);
 
     /**
      * @brief Type for float parameters.
@@ -109,14 +111,16 @@ public:
      *
      * @return `true` if items are equal.
      */
-    friend bool operator==(const Param::FloatParam& lhs, const Param::FloatParam& rhs);
+    friend MAVSDK_PUBLIC bool
+    operator==(const Param::FloatParam& lhs, const Param::FloatParam& rhs);
 
     /**
      * @brief Stream operator to print information about a `Param::FloatParam`.
      *
      * @return A reference to the stream.
      */
-    friend std::ostream& operator<<(std::ostream& str, Param::FloatParam const& float_param);
+    friend MAVSDK_PUBLIC std::ostream&
+    operator<<(std::ostream& str, Param::FloatParam const& float_param);
 
     /**
      * @brief Type for custom parameters
@@ -131,14 +135,16 @@ public:
      *
      * @return `true` if items are equal.
      */
-    friend bool operator==(const Param::CustomParam& lhs, const Param::CustomParam& rhs);
+    friend MAVSDK_PUBLIC bool
+    operator==(const Param::CustomParam& lhs, const Param::CustomParam& rhs);
 
     /**
      * @brief Stream operator to print information about a `Param::CustomParam`.
      *
      * @return A reference to the stream.
      */
-    friend std::ostream& operator<<(std::ostream& str, Param::CustomParam const& custom_param);
+    friend MAVSDK_PUBLIC std::ostream&
+    operator<<(std::ostream& str, Param::CustomParam const& custom_param);
 
     /**
      * @brief Type collecting all integer, float, and custom parameters.
@@ -157,14 +163,15 @@ public:
      *
      * @return `true` if items are equal.
      */
-    friend bool operator==(const Param::AllParams& lhs, const Param::AllParams& rhs);
+    friend MAVSDK_PUBLIC bool operator==(const Param::AllParams& lhs, const Param::AllParams& rhs);
 
     /**
      * @brief Stream operator to print information about a `Param::AllParams`.
      *
      * @return A reference to the stream.
      */
-    friend std::ostream& operator<<(std::ostream& str, Param::AllParams const& all_params);
+    friend MAVSDK_PUBLIC std::ostream&
+    operator<<(std::ostream& str, Param::AllParams const& all_params);
 
     /**
      * @brief Possible results returned for param requests.
@@ -179,6 +186,14 @@ public:
         NoSystem, /**< @brief No system connected. */
         ParamValueTooLong, /**< @brief Param value too long (> 128). */
         Failed, /**< @brief Operation failed.. */
+        DoesNotExist, /**< @brief Parameter does not exist. */
+        ValueOutOfRange, /**< @brief Parameter value does not fit within accepted range. */
+        PermissionDenied, /**< @brief Caller is not permitted to set the value of this parameter. */
+        ComponentNotFound, /**< @brief Unknown component specified. */
+        ReadOnly, /**< @brief Parameter is read-only. */
+        TypeUnsupported, /**< @brief Parameter data type is not supported by flight stack. */
+        TypeMismatch, /**< @brief Parameter type does not match expected type. */
+        ReadFail, /**< @brief Parameter exists but reading failed. */
     };
 
     /**
@@ -186,7 +201,7 @@ public:
      *
      * @return A reference to the stream.
      */
-    friend std::ostream& operator<<(std::ostream& str, Param::Result const& result);
+    friend MAVSDK_PUBLIC std::ostream& operator<<(std::ostream& str, Param::Result const& result);
 
     /**
      * @brief Callback type for asynchronous Param calls.

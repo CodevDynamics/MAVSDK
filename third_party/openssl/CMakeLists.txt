@@ -15,7 +15,7 @@ message(STATUS "Building with ${BUILD_PARALLEL_JOBS} jobs")
 
 message(STATUS "Preparing external project \"openssl\"")
 
-set(OPENSSL_VERSION 3.4.0)
+set(OPENSSL_VERSION 3.6.0)
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     set(OPENSSL_BUILD_TYPE "--debug")
@@ -141,7 +141,7 @@ else()
         openssl
         URL https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz
         PREFIX openssl
-        CONFIGURE_COMMAND <SOURCE_DIR>/config ${OPENSSL_BUILD_TYPE} --prefix=${CMAKE_INSTALL_PREFIX} no-shared
+        CONFIGURE_COMMAND <SOURCE_DIR>/config ${OPENSSL_BUILD_TYPE} --prefix=${CMAKE_INSTALL_PREFIX} --libdir=lib no-shared
         BUILD_COMMAND make -j${BUILD_PARALLEL_JOBS} build_libs
         INSTALL_COMMAND make install_dev
         )

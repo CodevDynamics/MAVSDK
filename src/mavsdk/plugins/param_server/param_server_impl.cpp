@@ -1,13 +1,14 @@
 #include "param_server_impl.h"
 #include "callback_list.tpp"
+#include "mavsdk_export.h"
 #include <thread>
 #include <chrono>
 
 namespace mavsdk {
 
-template class CallbackList<ParamServer::IntParam>;
-template class CallbackList<ParamServer::FloatParam>;
-template class CallbackList<ParamServer::CustomParam>;
+template class MAVSDK_TEMPL_INST CallbackList<ParamServer::IntParam>;
+template class MAVSDK_TEMPL_INST CallbackList<ParamServer::FloatParam>;
+template class MAVSDK_TEMPL_INST CallbackList<ParamServer::CustomParam>;
 
 ParamServerImpl::ParamServerImpl(std::shared_ptr<ServerComponent> server_component) :
     ServerPluginImplBase(server_component)
@@ -62,6 +63,11 @@ ParamServer::Result ParamServerImpl::provide_param_int(std::string name, int32_t
     if (name.size() > 16) {
         return ParamServer::Result::ParamNameTooLong;
     }
+
+    if (_server_component_impl->mavlink_parameter_server().params_locked_down()) {
+        return ParamServer::Result::ParamProvidedTooLate;
+    }
+
     const auto ret =
         _server_component_impl->mavlink_parameter_server().provide_server_param_int(name, value);
     if (ret == MavlinkParameterServer::Result::Ok) {
@@ -90,6 +96,11 @@ ParamServer::Result ParamServerImpl::provide_param_float(std::string name, float
     if (name.size() > 16) {
         return ParamServer::Result::ParamNameTooLong;
     }
+
+    if (_server_component_impl->mavlink_parameter_server().params_locked_down()) {
+        return ParamServer::Result::ParamProvidedTooLate;
+    }
+
     const auto ret =
         _server_component_impl->mavlink_parameter_server().provide_server_param_float(name, value);
     if (ret == MavlinkParameterServer::Result::Ok) {

@@ -127,15 +127,24 @@ ActionServer::Result ActionServer::set_flight_mode(FlightMode flight_mode) const
     return _impl->set_flight_mode(flight_mode);
 }
 
-bool operator==(
+ActionServer::Result ActionServer::set_flight_mode_internal(FlightMode flight_mode) const
+{
+    return _impl->set_flight_mode_internal(flight_mode);
+}
+
+MAVSDK_PUBLIC bool operator==(
     const ActionServer::AllowableFlightModes& lhs, const ActionServer::AllowableFlightModes& rhs)
 {
     return (rhs.can_auto_mode == lhs.can_auto_mode) &&
            (rhs.can_guided_mode == lhs.can_guided_mode) &&
-           (rhs.can_stabilize_mode == lhs.can_stabilize_mode);
+           (rhs.can_stabilize_mode == lhs.can_stabilize_mode) &&
+           (rhs.can_auto_rtl_mode == lhs.can_auto_rtl_mode) &&
+           (rhs.can_auto_takeoff_mode == lhs.can_auto_takeoff_mode) &&
+           (rhs.can_auto_land_mode == lhs.can_auto_land_mode) &&
+           (rhs.can_auto_loiter_mode == lhs.can_auto_loiter_mode);
 }
 
-std::ostream&
+MAVSDK_PUBLIC std::ostream&
 operator<<(std::ostream& str, ActionServer::AllowableFlightModes const& allowable_flight_modes)
 {
     str << std::setprecision(15);
@@ -143,16 +152,21 @@ operator<<(std::ostream& str, ActionServer::AllowableFlightModes const& allowabl
     str << "    can_auto_mode: " << allowable_flight_modes.can_auto_mode << '\n';
     str << "    can_guided_mode: " << allowable_flight_modes.can_guided_mode << '\n';
     str << "    can_stabilize_mode: " << allowable_flight_modes.can_stabilize_mode << '\n';
+    str << "    can_auto_rtl_mode: " << allowable_flight_modes.can_auto_rtl_mode << '\n';
+    str << "    can_auto_takeoff_mode: " << allowable_flight_modes.can_auto_takeoff_mode << '\n';
+    str << "    can_auto_land_mode: " << allowable_flight_modes.can_auto_land_mode << '\n';
+    str << "    can_auto_loiter_mode: " << allowable_flight_modes.can_auto_loiter_mode << '\n';
     str << '}';
     return str;
 }
 
-bool operator==(const ActionServer::ArmDisarm& lhs, const ActionServer::ArmDisarm& rhs)
+MAVSDK_PUBLIC bool
+operator==(const ActionServer::ArmDisarm& lhs, const ActionServer::ArmDisarm& rhs)
 {
     return (rhs.arm == lhs.arm) && (rhs.force == lhs.force);
 }
 
-std::ostream& operator<<(std::ostream& str, ActionServer::ArmDisarm const& arm_disarm)
+MAVSDK_PUBLIC std::ostream& operator<<(std::ostream& str, ActionServer::ArmDisarm const& arm_disarm)
 {
     str << std::setprecision(15);
     str << "arm_disarm:" << '\n' << "{\n";
@@ -162,7 +176,7 @@ std::ostream& operator<<(std::ostream& str, ActionServer::ArmDisarm const& arm_d
     return str;
 }
 
-std::ostream& operator<<(std::ostream& str, ActionServer::Result const& result)
+MAVSDK_PUBLIC std::ostream& operator<<(std::ostream& str, ActionServer::Result const& result)
 {
     switch (result) {
         case ActionServer::Result::Unknown:
@@ -196,7 +210,8 @@ std::ostream& operator<<(std::ostream& str, ActionServer::Result const& result)
     }
 }
 
-std::ostream& operator<<(std::ostream& str, ActionServer::FlightMode const& flight_mode)
+MAVSDK_PUBLIC std::ostream&
+operator<<(std::ostream& str, ActionServer::FlightMode const& flight_mode)
 {
     switch (flight_mode) {
         case ActionServer::FlightMode::Unknown:

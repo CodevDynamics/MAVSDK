@@ -13,10 +13,17 @@ configure_file(version.h.in version.h)
 configure_file(include/mavsdk/mavlink_include.h.in include/mavsdk/mavlink_include.h)
 
 # Generate embedded XML header for libmav
-set(MAVLINK_MINIMAL_XML "${DEPS_INSTALL_PATH}/include/mavlink/message_definitions/v1.0/minimal.xml")
-set(MAVLINK_STANDARD_XML "${DEPS_INSTALL_PATH}/include/mavlink/message_definitions/v1.0/standard.xml")
-set(MAVLINK_COMMON_XML "${DEPS_INSTALL_PATH}/include/mavlink/message_definitions/v1.0/common.xml")
-set(MAVLINK_ARDUPILOTMEGA_XML "${DEPS_INSTALL_PATH}/include/mavlink/message_definitions/v1.0/ardupilotmega.xml")
+if(NOT MAVLINK_XML_PATH)
+    # Derive from MAVLINK_INCLUDE_DIR which is set by find_package(MAVLink)
+    # MAVLINK_INCLUDE_DIR points to .../include, so we append mavlink/message_definitions/v1.0
+    set(MAVLINK_XML_PATH "${MAVLINK_INCLUDE_DIR}/mavlink/message_definitions/v1.0")
+endif()
+
+set(MAVLINK_MINIMAL_XML "${MAVLINK_XML_PATH}/minimal.xml")
+set(MAVLINK_STANDARD_XML "${MAVLINK_XML_PATH}/standard.xml")
+set(MAVLINK_COMMON_XML "${MAVLINK_XML_PATH}/common.xml")
+set(MAVLINK_ARDUPILOTMEGA_XML "${MAVLINK_XML_PATH}/ardupilotmega.xml")
+
 set(EMBEDDED_XML_HEADER "${CMAKE_CURRENT_BINARY_DIR}/embedded_mavlink_xml.h")
 
 add_custom_command(
@@ -39,7 +46,9 @@ target_sources(mavsdk
     PRIVATE
     autopilot.cpp
     base64.cpp
+    compatibility_mode.cpp
     call_every_handler.cpp
+    callback_tracker.cpp
     connection.cpp
     connection_result.cpp
     crc32.cpp
@@ -53,6 +62,7 @@ target_sources(mavsdk
     math_utils.cpp
     mavsdk.cpp
     mavsdk_impl.cpp
+    mavlink_channel_status.cpp
     mavlink_channels.cpp
     mavlink_command_receiver.cpp
     mavlink_command_sender.cpp
@@ -75,6 +85,7 @@ target_sources(mavsdk
     param_value.cpp
     ping.cpp
     plugin_impl_base.cpp
+    raw_connection.cpp
     serial_connection.cpp
     server_component.cpp
     server_component_impl.cpp
@@ -124,6 +135,12 @@ else()
     )
 endif()
 
+target_compile_definitions(mavsdk PRIVATE MAVSDK_BUILD)
+
+if (BUILD_SHARED_LIBS)
+    target_compile_definitions(mavsdk PUBLIC MAVSDK_SHARED)
+endif()
+
 set_target_properties(mavsdk PROPERTIES
     VERSION ${MAVSDK_VERSION_STRING}
     SOVERSION ${MAVSDK_SOVERSION_STRING}
@@ -163,8 +180,27 @@ if((BUILD_STATIC_MAVSDK_SERVER AND ("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")) OR
 endif()
 
 set_target_properties(mavsdk
-    PROPERTIES COMPILE_FLAGS ${warnings}
+    PROPERTIES
+        COMPILE_FLAGS ${warnings}
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN ON
     )
+
+# Use a linker symbol export list to hide symbols from statically-linked
+# third-party libraries (OpenSSL, tinyxml2, curl, etc.).
+# -fvisibility=hidden only affects code compiled with that flag;
+# pre-built static archives still export their symbols without this.
+if(BUILD_SHARED_LIBS)
+    if(APPLE)
+        target_link_options(mavsdk PRIVATE
+            "LINKER:-exported_symbols_list,${CMAKE_CURRENT_SOURCE_DIR}/libmavsdk.exported_symbols"
+        )
+    elseif(UNIX)
+        target_link_options(mavsdk PRIVATE
+            "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/libmavsdk.version"
+        )
+    endif()
+endif()
 
 target_include_directories(mavsdk
     PUBLIC
@@ -196,12 +232,14 @@ list(APPEND HEADERS ${HEADERS_TPP})
 install(FILES
     include/mavsdk/autopilot.h
     include/mavsdk/base64.h
+    include/mavsdk/compatibility_mode.h
     include/mavsdk/component_type.h
     include/mavsdk/connection_result.h
     include/mavsdk/deprecated.h
     include/mavsdk/handle.h
     include/mavsdk/system.h
     include/mavsdk/mavsdk.h
+    include/mavsdk/mavsdk_export.h
     include/mavsdk/log_callback.h
     include/mavsdk/plugin_base.h
     include/mavsdk/server_plugin_base.h

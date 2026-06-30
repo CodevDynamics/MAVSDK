@@ -1,9 +1,10 @@
 #include "transponder_impl.h"
 #include "callback_list.tpp"
+#include "mavsdk_export.h"
 
 namespace mavsdk {
 
-template class CallbackList<Transponder::AdsbVehicle>;
+template class MAVSDK_TEMPL_INST CallbackList<Transponder::AdsbVehicle>;
 
 TransponderImpl::TransponderImpl(System& system) : PluginImplBase(system)
 {
@@ -30,7 +31,7 @@ void TransponderImpl::init()
 
 void TransponderImpl::deinit()
 {
-    _system_impl->unregister_all_mavlink_message_handlers(this);
+    _system_impl->unregister_all_mavlink_message_handlers_blocking(this);
 }
 
 void TransponderImpl::enable() {}

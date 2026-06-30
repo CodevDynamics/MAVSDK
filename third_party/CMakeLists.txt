@@ -13,7 +13,13 @@ if (CMAKE_CROSSCOMPILING)
 endif()
 
 if(SUPERBUILD)
+    set(MAVLINK_HASH "d6a7eeaf43319ce6da19a1973ca40180a4210643"
+        CACHE STRING "Hash for the MAVLink Repository")
+    set(MAVLINK_URL "https://github.com/mavlink/mavlink"
+        CACHE STRING "URL for the MAVLink Repository")
+
     build_target(mavlink)
+    build_target(libevents)
     build_target(picosha2)
     build_target(tinyxml2)
     build_target(libmavlike)
@@ -55,8 +61,6 @@ if(SUPERBUILD)
     endif()
 
 endif()
-
-build_target(libevents)
 
 if(ENABLE_CPPTRACE)
     build_target(cpptrace)

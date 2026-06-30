@@ -67,6 +67,7 @@ public:
 
     void unregister_mavlink_message_handler(uint16_t msg_id, const void* cookie);
     void unregister_all_mavlink_message_handlers(const void* cookie);
+    void unregister_all_mavlink_message_handlers_blocking(const void* cookie);
 
     void
     update_component_id_messages_handler(uint16_t msg_id, uint8_t component_id, const void* cookie);
@@ -111,6 +112,9 @@ public:
         std::function<mavlink_message_t(MavlinkAddress mavlink_address, uint8_t channel)> fun);
 
     Autopilot autopilot() const { return _autopilot; };
+
+    // Returns effective autopilot considering compatibility mode override
+    Autopilot effective_autopilot() const;
 
     using CommandResultCallback = MavlinkCommandSender::CommandResultCallback;
 
@@ -324,6 +328,8 @@ public:
 
     double timeout_s() const;
 
+    void signal_exit() { _should_exit = true; }
+
 private:
     static bool is_autopilot(uint8_t comp_id);
     static bool is_camera(uint8_t comp_id);
@@ -398,8 +404,6 @@ private:
     std::thread* _system_thread{nullptr};
     std::atomic<bool> _should_exit{false};
 
-    static constexpr double HEARTBEAT_TIMEOUT_S = 3.0;
-
     std::atomic<bool> _connected{false};
     CallbackList<bool> _is_connected_callbacks{};
     TimeoutHandler::Cookie _heartbeat_timeout_cookie{};
@@ -432,6 +436,7 @@ private:
     std::unordered_map<const void*, ParamChangedCallback> _param_changed_callbacks{};
 
     MAV_TYPE _vehicle_type{MAV_TYPE::MAV_TYPE_GENERIC};
+    bool _vehicle_type_set{false};
 
     std::atomic<FlightMode> _flight_mode{FlightMode::Unknown};
 

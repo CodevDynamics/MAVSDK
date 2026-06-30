@@ -6,10 +6,12 @@
 #include <fstream> // for `std::ifstream`
 #include <sstream> // for `std::stringstream`
 
+#include "mavsdk_export.h"
+
 namespace mavsdk {
 
-template class CallbackList<MissionRaw::MissionProgress>;
-template class CallbackList<bool>;
+template class MAVSDK_TEMPL_INST CallbackList<MissionRaw::MissionProgress>;
+template class MAVSDK_TEMPL_INST CallbackList<bool>;
 
 // This is an empty item that can be sent to ArduPilot to mimic clearing of mission.
 constexpr MissionRaw::MissionItem empty_item{0, 3, 16, 1};
@@ -49,13 +51,12 @@ void MissionRawImpl::init()
 
 void MissionRawImpl::enable() {}
 
-void MissionRawImpl::disable()
-{
-}
+void MissionRawImpl::disable() {}
 
 void MissionRawImpl::deinit()
 {
-    _system_impl->unregister_all_mavlink_message_handlers(this);
+    _system_impl->unregister_all_mavlink_message_handlers_blocking(this);
+    reset_mission_progress();
 }
 
 void MissionRawImpl::reset_mission_progress(int total)
@@ -175,6 +176,12 @@ void MissionRawImpl::upload_mission_items_async(
         [this, callback, int_items](MavlinkMissionTransferClient::Result result) {
             auto converted_result = convert_result(result);
             auto converted_items = convert_items(int_items);
+
+            if (converted_result == MissionRaw::Result::Success) {
+                std::lock_guard<std::mutex> lock(_mission_progress.mutex);
+                _mission_progress.last.total = int_items.size();
+            }
+
             _system_impl->call_user_callback([callback, converted_result, converted_items]() {
                 if (callback) {
                     callback(converted_result);
@@ -344,6 +351,12 @@ void MissionRawImpl::download_mission_async(const MissionRaw::DownloadMissionCal
             std::vector<MavlinkMissionTransferClient::ItemInt> items) {
             auto converted_result = convert_result(result);
             auto converted_items = convert_items(items);
+
+            if (converted_result == MissionRaw::Result::Success) {
+                std::lock_guard<std::mutex> lock(_mission_progress.mutex);
+                _mission_progress.last.total = items.size();
+            }
+
             _system_impl->call_user_callback([callback, converted_result, converted_items]() {
                 callback(converted_result, converted_items);
             });
@@ -482,9 +495,6 @@ std::vector<MissionRaw::MissionItem> MissionRawImpl::convert_items(
         new_items.push_back(convert_item(transfer_item));
     }
 
-    std::lock_guard<std::mutex> lock(_mission_progress.mutex);
-    _mission_progress.last.total = new_items.size();
-
     return new_items;
 }
 
@@ -574,7 +584,7 @@ void MissionRawImpl::clear_mission_async(const MissionRaw::ResultCallback& callb
     reset_mission_progress();
 
     // For ArduPilot to clear a mission we need to upload an empty mission.
-    if (_system_impl->autopilot() == Autopilot::ArduPilot) {
+    if (_system_impl->effective_autopilot() == Autopilot::ArduPilot) {
         std::vector<MissionRaw::MissionItem> mission_items{empty_item};
         upload_mission_async(mission_items, callback);
     } else {
@@ -699,13 +709,13 @@ MissionRawImpl::import_qgroundcontrol_mission(std::string qgc_plan_path)
     buf << file.rdbuf();
     file.close();
 
-    return MissionImport::parse_json(buf.str(), _system_impl->autopilot());
+    return MissionImport::parse_json(buf.str(), _system_impl->effective_autopilot());
 }
 
 std::pair<MissionRaw::Result, MissionRaw::MissionImportData>
 MissionRawImpl::import_qgroundcontrol_mission_from_string(const std::string& qgc_plan)
 {
-    return MissionImport::parse_json(qgc_plan, _system_impl->autopilot());
+    return MissionImport::parse_json(qgc_plan, _system_impl->effective_autopilot());
 }
 
 std::pair<MissionRaw::Result, MissionRaw::MissionImportData>
@@ -721,14 +731,15 @@ MissionRawImpl::import_mission_planner_mission(std::string mission_planner_path)
     buf << file.rdbuf();
     file.close();
 
-    return MissionImport::parse_mission_planner(buf.str(), _system_impl->autopilot());
+    return MissionImport::parse_mission_planner(buf.str(), _system_impl->effective_autopilot());
 }
 
 std::pair<MissionRaw::Result, MissionRaw::MissionImportData>
 MissionRawImpl::import_mission_planner_mission_from_string(
     const std::string& mission_planner_mission)
 {
-    return MissionImport::parse_mission_planner(mission_planner_mission, _system_impl->autopilot());
+    return MissionImport::parse_mission_planner(
+        mission_planner_mission, _system_impl->effective_autopilot());
 }
 
 MissionRaw::Result MissionRawImpl::convert_result(MavlinkMissionTransferClient::Result result)

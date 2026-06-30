@@ -60,6 +60,11 @@ bool CliArg::parse(const std::string& uri)
             std::string_view(uri).substr(serial_flowcontrol.size() + delimiter.size()), true);
     }
 
+    const std::string raw = "raw";
+    if (uri.find(raw + delimiter) == 0) {
+        return parse_raw(std::string_view(uri).substr(raw.size() + delimiter.size()));
+    }
+
     LogErr() << "Unknown protocol";
     return false;
 }
@@ -322,6 +327,18 @@ std::vector<std::pair<std::string, int>> CliArg::find_remotes(std::string& rest)
         secondPart = match.suffix();
     }
     return remotes;
+}
+
+bool CliArg::parse_raw(const std::string_view rest)
+{
+    // raw:// connection has no parameters
+    if (!rest.empty()) {
+        LogErr() << "raw:// connection should not have parameters";
+        return false;
+    }
+
+    protocol = Raw{};
+    return true;
 }
 
 } // namespace mavsdk

@@ -5,10 +5,11 @@
 #include "info_impl.h"
 #include "system.h"
 #include "callback_list.tpp"
+#include "mavsdk_export.h"
 
 namespace mavsdk {
 
-template class CallbackList<Info::FlightInfo>;
+template class MAVSDK_TEMPL_INST CallbackList<Info::FlightInfo>;
 
 InfoImpl::InfoImpl(System& system) : PluginImplBase(system)
 {
@@ -45,7 +46,7 @@ void InfoImpl::init()
 
 void InfoImpl::deinit()
 {
-    _system_impl->unregister_all_mavlink_message_handlers(this);
+    _system_impl->unregister_all_mavlink_message_handlers_blocking(this);
 }
 
 void InfoImpl::enable()
